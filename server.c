@@ -15,6 +15,13 @@
 #define BUFFSIZE 100
 #define MAX_MESSAGE 1000
 
+int startCountdown = 0;
+
+int countdownEnded = 0;
+
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+    //pthread_mutex_lock(&mutex);
+    // pthread_mutex_unlock(&mutex);
 int playerSymbol = 0;
 
 int playerCount;
@@ -24,7 +31,7 @@ struct playerSockets *head_p;
 //Player structure
 struct player {
     char name[255];
-    char symbol[2];
+    //char symbol[2];
     int playerfd;
 
     struct player *next;
@@ -49,11 +56,11 @@ int checkExistingName(char *name){
 //Izveidot jaunu mezglu player sarakstā
 void insert_player(char *name, int playerfd) 
 {   
-    int i = 65 + playerSymbol;
+    /*int i = 65 + playerSymbol;
     char text[2];
 
     text[0] = (char)i;
-    text[1] = '\0';
+    text[1] = '\0';*/
 
     //Izveido pašu elementu
     struct player *elem = (struct player*) malloc(sizeof(struct player));
@@ -62,9 +69,9 @@ void insert_player(char *name, int playerfd)
 
     elem->playerfd = playerfd;
 
-    strcpy(elem->symbol, text);
+    //strcpy(elem->symbol, text);
 
-    fprintf(stderr, "Symbol - %s\n", elem->symbol);
+    //fprintf(stderr, "Symbol - %s\n", elem->symbol);
 
     playerSymbol++;
 
@@ -111,9 +118,9 @@ void refreshPlayerCount() {
 
     while (n) {
         strcat(info, n->name);
-        strcat(info, "(");
+        /*strcat(info, "(");
         strcat(info, n->symbol);
-        strcat(info, ")");
+        strcat(info, ")");*/
 
         if (n->next != NULL) {
             strcat(info, ", ");
@@ -133,9 +140,10 @@ void refreshPlayerCount() {
 
         p = p->next;
     }
-    }
+}
 
 void HandleClient(int sock) {
+
     char *mBuff = malloc(sizeof(char) * 255);
     int received = -1;
 
@@ -159,16 +167,17 @@ void HandleClient(int sock) {
         outputList();
         refreshPlayerCount();
 
-        free(mBuff);
-
-        if (playerCount > 1){
+        //Join thread to first client thread if this isnt the first one
+        /*if (playerCount > 1){
             sleep(10); // After this, start the game, if 8 players havent connected
             fprintf(stderr, "Time\n");
-        }
-        while(playerCount != 30){
+        }*/
+        /*while(playerCount != 30){
             //
-        }
+        }*/
     }// if game has started!!!!!!!!!!!!!
+
+    free(mBuff);
 }
 
 // izdrukā klienta informāciju
@@ -184,9 +193,20 @@ void printClient(int fd) {
     printf("%s:%d connected via TCP\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
 }
 
+void countdown(pthread_t timeThread) {
+    sleep(10);
+    int status = 0;
+    fprintf(stderr, "Countdown ended \n");
+    countdownEnded = 1;
+    pthread_join(timeThread, status);
+
+    //Start
+}
+
 int main(int argc, char *argv[]) {
     int serversock; //clientsock;
     struct sockaddr_in echoserver; //echoclient;
+    int joinStatus = 0;
 
     if (argc != 2) {
         fprintf(stderr, "USAGE: echoserver <port>\n");
@@ -218,6 +238,12 @@ int main(int argc, char *argv[]) {
     for (;;) {
         struct sockaddr_in peerAddr;
         socklen_t addrSize = sizeof(peerAddr);
+        //fprintf(stderr, "Beidās taču ne?\n");
+        if (playerCount == 8 || countdownEnded == 1) {
+            // Start game
+            fprintf(stderr, "LETS GOOOOO!\n");
+        }
+
         int clientFd = accept(serversock, (struct sockaddr *) &peerAddr, &addrSize);
 
         if (clientFd == -1) {
@@ -226,11 +252,29 @@ int main(int argc, char *argv[]) {
         }
 
         //Output client info
-        printClient(clientFd);      
+        printClient(clientFd);
 
         //Create client thread
         pthread_t clientThread;
         pthread_create(&clientThread, NULL, HandleClient, (void *) clientFd);
+        pthread_join(clientThread, joinStatus);
+        fprintf(stderr, "Ended\n");
+
+        if (joinStatus != 0) {
+            fprintf(stderr, "Join error %d\n", joinStatus);
+        }
+
+        if (playerCount > 1 && startCountdown == 0) {
+            startCountdown = 1;
+            // Start countdown
+            //Create time thread
+            pthread_t timeThread;
+            pthread_create(&timeThread, NULL, countdown, (void *) timeThread);
+
+            if (joinStatus != 0) {
+                fprintf(stderr, "Time join error %d\n", joinStatus);
+            }
+        }
     }
 
     printf("In main thread");
