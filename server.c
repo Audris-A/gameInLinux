@@ -107,6 +107,9 @@ void refreshPlayerCount() {
 
     while (n) {
         strcat(info, n->name);
+        strcat(info, " (");
+        strcat(info, n->symbol);
+        strcat(info, ")");
 
         if (n->next != NULL) {
             strcat(info, ", ");
@@ -149,7 +152,11 @@ void HandleClient(int sock) {
         refreshPlayerCount();
 
         free(mBuff);
-        //close(sock);
+        
+        if (playerCount > 1){
+            sleep(10); // After this, start the game, if 8 players havent connected
+            fprintf(stderr, "Time\n");
+        }
         while(playerCount != 30){
             //
         }
@@ -173,7 +180,6 @@ int main(int argc, char *argv[]) {
     int serversock; //clientsock;
     struct sockaddr_in echoserver; //echoclient;
 
-    //int statTh = 0;
     if (argc != 2) {
         fprintf(stderr, "USAGE: echoserver <port>\n");
         exit(1);
