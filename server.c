@@ -1,3 +1,7 @@
+/*
+    Read the map from a file and work with it.
+*/
+
 #include <stdio.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -94,20 +98,20 @@ void refreshPlayerCount() {
     char *plCnt = malloc(sizeof(char) * 3);
     char *info = malloc(sizeof(char) * 256);
     unsigned int plLen = 0;
-    strcpy(info, "2Players - ");
+    strcpy(info, "2");
 
     outputList();
     sprintf(plCnt, "%d", playerCount);
 
     strcat(info, plCnt);
 
-    strcat(info, " [");
+    strcat(info, "{");
 
     struct player *n = head;
 
     while (n) {
         strcat(info, n->name);
-        strcat(info, " (");
+        strcat(info, "(");
         strcat(info, n->symbol);
         strcat(info, ")");
 
@@ -118,7 +122,7 @@ void refreshPlayerCount() {
        n = n->next;
     }
 
-    strcat(info, "]");
+    strcat(info, "}");
 
     plLen = strlen(info);
 
@@ -144,6 +148,10 @@ void HandleClient(int sock) {
     //mBuff[strlen(mBuff) + 1] = '\0';
     if(checkExistingName(mBuff) == 1){
         //fprintf(stderr, "BAD\n");
+        if (send(sock, "4\0", 2, 0) != 2) {
+            Die("Existing username mismatch:");
+        }
+
         close(sock);
     } else {
         //If everything is ok
@@ -152,7 +160,7 @@ void HandleClient(int sock) {
         refreshPlayerCount();
 
         free(mBuff);
-        
+
         if (playerCount > 1){
             sleep(10); // After this, start the game, if 8 players havent connected
             fprintf(stderr, "Time\n");
