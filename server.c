@@ -17,7 +17,7 @@
 
 int startCountdown = 0;
 
-int countdownEnded = 0;
+int countdownEnded;
 
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
     //pthread_mutex_lock(&mutex);
@@ -100,6 +100,26 @@ struct player *outputList() {
 
 void Die(char *mess) { perror(mess); exit(1); }
 
+char *getPlayers() {
+    char *info = malloc(sizeof(char) * 256);
+    strcpy(info, "{");
+    struct player *n = head;
+
+    while (n) {
+        strcat(info, n->name);
+        fprintf(stderr, "%s\n", n->name);
+        if (n->next != NULL) {
+            strcat(info, ", ");
+        }
+
+       n = n->next;
+    }
+
+    strcat(info, "}");
+
+    return info;
+}
+
 void refreshPlayerCount() {
     struct player *p = head;
     char *plCnt = malloc(sizeof(char) * 3);
@@ -112,24 +132,7 @@ void refreshPlayerCount() {
 
     strcat(info, plCnt);
 
-    strcat(info, "{");
-
-    struct player *n = head;
-
-    while (n) {
-        strcat(info, n->name);
-        /*strcat(info, "(");
-        strcat(info, n->symbol);
-        strcat(info, ")");*/
-
-        if (n->next != NULL) {
-            strcat(info, ", ");
-        }
-
-       n = n->next;
-    }
-
-    strcat(info, "}");
+    strcat(info, getPlayers());
 
     plLen = strlen(info);
 
@@ -193,23 +196,145 @@ void printClient(int fd) {
     printf("%s:%d connected via TCP\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
 }
 
-void countdown(pthread_t timeThread) {
-    sleep(10);
-    int status = 0;
-    fprintf(stderr, "Countdown ended \n");
-    countdownEnded = 1;
-    pthread_join(timeThread, status);
+//Pa rindai karti nosūtīt
 
-    //Start
+void gameStart(char *fileName) {
+    FILE *input = fopen(fileName, "r");
+    char * line = NULL;
+    int rowCount = 0;
+
+    size_t len = 0;
+    ssize_t read;
+
+    char *infoHolder = malloc(sizeof(char) * 10);
+
+    char *mBuff = malloc(sizeof(char) * 255);
+
+    sprintf(infoHolder, "%d", playerCount);
+
+
+    if (input == NULL) {
+        exit(EXIT_FAILURE);
+    }
+
+    while ((read = getline(&line, &len, input)) != -1) {
+        rowCount++;
+    }
+
+    fclose(input);
+
+    //Message type
+    strcpy(mBuff, "5");
+    strcat(mBuff, infoHolder);
+
+    //Player usernames
+    strcat(mBuff, getPlayers());
+
+    //Map x coordinate
+    sprintf(infoHolder, "%ld", strlen(line));
+
+    if (strlen(infoHolder) == 1) {
+        strcat(mBuff, "00");
+    } else if (strlen(infoHolder) == 2) {
+        strcat(mBuff, "0");
+    }
+
+    strcat(mBuff, infoHolder);
+
+    //Map y coordinate
+    sprintf(infoHolder, "%d", rowCount);
+
+    if (strlen(infoHolder) == 1) {
+        strcat(mBuff, "00");
+    } else if (strlen(infoHolder) == 2) {
+        strcat(mBuff, "0");
+    }
+
+    strcat(mBuff, infoHolder);
+
+    //Send GAME_START information to clients
+    struct player *p = head;
+    unsigned int plLen = 0;
+
+    plLen = strlen(mBuff);
+
+    while(p){
+        if (send(p->playerfd, mBuff, plLen, 0) != plLen) {
+            Die("Refresh mismatch:");
+        }
+
+        p = p->next;
+    }
+
+    sendRow(fileName);
+}
+
+void sendRow(char *fileName) {
+    FILE *input = fopen(fileName, "r");
+    char * line = NULL;
+    int rowCount = 1;
+
+    size_t len = 0;
+    ssize_t read;
+
+    char *infoHolder = malloc(sizeof(char) * 10);
+
+    char *mBuff = malloc(sizeof(char) * 255);
+
+    if (input == NULL) {
+        exit(EXIT_FAILURE);
+    }
+
+    while ((read = getline(&line, &len, input)) != -1) {
+        strcpy(mBuff, "6");
+
+        sprintf(infoHolder, "%d", rowCount);
+
+        if (strlen(infoHolder) == 1) {
+            strcat(mBuff, "00");
+        } else if (strlen(infoHolder) == 2) {
+            strcat(mBuff, "0");
+        }
+
+        strcat(mBuff, infoHolder);
+
+        struct player *p = head;
+        unsigned int plLen = 0;
+
+        strcat(mBuff, line);
+
+        plLen = strlen(mBuff);
+
+        while(p){
+            if (send(p->playerfd, mBuff, plLen, 0) != plLen) {
+                Die("Refresh mismatch:");
+            }
+
+            p = p->next;
+        }
+
+        rowCount++;
+    }
+
+    fclose(input);
+
+    if (line) {
+        free(line);
+    }
+
+    for(;;){
+        //
+    }
 }
 
 int main(int argc, char *argv[]) {
     int serversock; //clientsock;
     struct sockaddr_in echoserver; //echoclient;
     int joinStatus = 0;
+    countdownEnded = 0;
 
-    if (argc != 2) {
-        fprintf(stderr, "USAGE: echoserver <port>\n");
+    if (argc < 3) {
+        fprintf(stderr, "USAGE: echoserver <port> <path to map>\n");
         exit(1);
     }
 
@@ -244,6 +369,7 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "LETS GOOOOO!\n");
         }
 
+        //int clientFd = accept(serversock, (struct sockaddr *) &peerAddr, &addrSize);
         int clientFd = accept(serversock, (struct sockaddr *) &peerAddr, &addrSize);
 
         if (clientFd == -1) {
@@ -264,16 +390,47 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "Join error %d\n", joinStatus);
         }
 
-        if (playerCount > 1 && startCountdown == 0) {
-            startCountdown = 1;
-            // Start countdown
-            //Create time thread
-            pthread_t timeThread;
-            pthread_create(&timeThread, NULL, countdown, (void *) timeThread);
+        if (playerCount > 1) {
+            fd_set rfds;
+            struct timeval tv;
+            int retval;
 
-            if (joinStatus != 0) {
-                fprintf(stderr, "Time join error %d\n", joinStatus);
+            tv.tv_sec = 10;
+            tv.tv_usec = 0;
+
+            for(;;){
+                if (playerCount > 7) {
+                    //Start game!!!!
+                    fprintf(stderr, "Start game from count\n");
+                    gameStart(argv[3]);
+                }
+
+                retval = select(serversock + 1, &rfds, NULL, NULL, &tv);
+                fprintf(stderr, "Retval - %d\n", retval);
+                /* Don't rely on the value of tv now! */
+
+                if (retval == -1){
+                    perror("select()");
+                } else if (retval){
+                    printf("Data is available now.\n");
+                    int clientFd = accept(serversock, (struct sockaddr *) &peerAddr, &addrSize);
+
+                    //Output client info
+                    printClient(clientFd);
+
+                    //Create client thread
+                    pthread_t clientThread;
+                    pthread_create(&clientThread, NULL, HandleClient, (void *) clientFd);
+                    pthread_join(clientThread, joinStatus);
+                    /* FD_ISSET(0, &rfds) will be true. */
+                } else {
+                    fprintf(stderr, "Start game from time\n");
+                    //Start game!
+                    gameStart(argv[2]);
+                }
             }
+        } else {
+            fprintf(stderr, "Ārpus if\n");
         }
     }
 
