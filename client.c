@@ -11,7 +11,7 @@ void Die(char *mess) { perror(mess); exit(1); }
 
 struct player {
 	char name[17];
-	char symbol[2];
+	/*char symbol[2];*/
 
 	struct player *next;
 };
@@ -20,9 +20,9 @@ struct player *head = NULL;
 
 void deletePlayers(struct player** head)
 {
-
+   /* deref head_ref to get the real head */
    struct player* current = *head;
-
+   
    struct player* next;
 
    while (current != NULL)
@@ -32,6 +32,8 @@ void deletePlayers(struct player** head)
    	current = next;
    }
 
+   /* deref head_ref to affect the real head back
+  	in the caller. */
    *head = NULL;
 }
 
@@ -43,19 +45,20 @@ void printPlayers(struct player** head)
 
    while (current != NULL)
    {
-   	printf("%s - %s\n", current->name, current->symbol);
+   	//printf("%s - %s\n", current->name, current->symbol);
+   	printf("%s\n", current->name);
    	current = current->next;
    }
 }
 
-void pushPlayers(struct player** head, char* name, char* symbol)
+void pushPlayers(struct player** head, char* name/*, char* symbol*/)
 {
 	/* allocate node */
 	struct player* new_node = (struct player*) malloc(sizeof(struct player));
 
-	/* put data  */
+	/* put in the data  */
 	strcpy(new_node->name, name);
-	strcpy(new_node->symbol, symbol);
+	// strcpy(new_node->symbol, symbol);
 
 	/* link the old list off the new node */
 	new_node->next = *head;
@@ -73,7 +76,6 @@ void HandleMessages(int sock) {
   if ((received = recv(sock, mBuff, BUFFSIZE, 0)) < 0) {
 	Die("Failed to receive initial bytes from server");
   } else {
-	//all server codes
 	switch (mBuff[0]){
     	case '2':
         	print_lobby_info(mBuff);
@@ -101,29 +103,29 @@ void HandleMessages(int sock) {
   //close(sock);
 }
 
-int get_name(char *fullStr, char *playerName, char *symbol, int start){
+int get_name(char *fullStr, char *playerName/*, char *symbol*/, int start){
   int i=0;
-
+ 
   do {
 	playerName[i] = fullStr[start];
 	i++;
 	start++;
-  } while (fullStr[start] != '(');
-start++;
-i++;
-playerName[i]=0;
-symbol[0]=fullStr[start];
-symbol[1]=0;
-  return i+2;
+  } while (fullStr[start] != ',' && fullStr[start] != '}');
+// start++;
+// i++;
+// playerName[i]=0;
+// symbol[0]=fullStr[start];
+// symbol[1]=0;
+  return i;
 }
 
 //lobby info apstrade
 void print_lobby_info(char *mBuff){
 	char playerCount;
-	int i = 3;
+	int i = 3;                                                                                                                 	 
 	int n = 0;
 	char *playerName = malloc(sizeof(char) * 17);
-	char *symbol = malloc(sizeof(char) * 2);
+	/*char *symbol = malloc(sizeof(char) * 2);*/
 
 //veca saraksta iztirisana
 	deletePlayers(&head);
@@ -133,11 +135,11 @@ void print_lobby_info(char *mBuff){
  	playerCount = mBuff[1];
 
  	printf("Player count: %c\n", playerCount);
-//speletaju pierakstisana saraksta
-	while(mBuff[i] != '}') {
-    	i = i + get_name(mBuff, playerName, symbol, i);
 
-        	pushPlayers(&head, playerName, symbol);
+	while(mBuff[i] != '}') {
+    	i = i + get_name(mBuff, playerName/*, symbol*/, i);
+
+        	pushPlayers(&head, playerName/*, symbol*/);
 
         	if(mBuff[i] == '}'){
           	break;
@@ -145,7 +147,6 @@ void print_lobby_info(char *mBuff){
 
 	}
 
-//saraksta attelosana
 	printPlayers(&head);
 
 }
