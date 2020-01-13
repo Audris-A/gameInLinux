@@ -11,29 +11,25 @@
 #define BUFFSIZE 100
 #define MAX_MESSAGE 1000
 
+int playerSymbol = 0;
+
 int playerCount;
-
-//Username structure
-struct playerSockets {
-	int playerfd;
-
-	struct playerSockets *next;
-};
 
 struct playerSockets *head_p;
 
-//Username structure
-struct userNames {
+//Player structure
+struct player {
 	char name[255];
 	char symbol[2];
+	int playerfd;
 
-	struct userNames *next;
+	struct player *next;
 };
 
-struct userNames *head;
+struct player *head;
 
 int checkExistingName(char *name){
-	struct userNames *p = head;
+	struct player *p = head;
 
 	while (p) {
 		//fprintf(stderr, "%s un %s\n", p->name, user);
@@ -47,28 +43,31 @@ int checkExistingName(char *name){
 	return 0;
 }
 
-//Izveidot jaunu mezglu playerSockets sarakstā
-void insert_socket(int playerfd) 
-{
+char numToASCII(int num) {
+    return (char)num;
+}
+
+//Izveidot jaunu mezglu player sarakstā
+void insert_player(char *name, int playerfd) 
+{	
+	int i = 65 + playerSymbol;
+	char text[2];
+
+	text[0] = numToASCII(i);
+	text[1] = '\0';
+
 	//Izveido pašu elementu
-	struct playerSockets *elem = (struct playerSockets*) malloc(sizeof(struct playerSockets));
+	struct player *elem = (struct player*) malloc(sizeof(struct player));
+
+	strcpy(elem->name, name);
 
 	elem->playerfd = playerfd;
 
-    //Izveido norādi uz iepriekšējo pirmo elementu
-   	elem->next = head_p;
+	strcpy(elem->symbol, text);
 
-   	//Norāda, ka jaunizveidotais elements ir pirmais
-   	head_p = elem;
-};
+	fprintf(stderr, "Symbol - %s\n", elem->symbol);
 
-//Izveidot jaunu mezglu userNames sarakstā
-void insert_username(char *name) 
-{
-	//Izveido pašu elementu
-	struct userNames *elem = (struct userNames*) malloc(sizeof(struct userNames));
-
-	strcpy(elem->name, name);
+	playerSymbol++;
 	//elem->name[strlen(elem->name)+1] = '\0';
 	//fprintf(stderr, " length   %ld\n", strlen(elem->name));
 	//strcat(elem->name, '\0');
@@ -80,8 +79,8 @@ void insert_username(char *name)
 };
 
 //Izvadīt ListElem sarakstu
-struct userNames *outputList() {
-	struct userNames *p = head;
+struct player *outputList() {
+	struct player *p = head;
 	playerCount = 0;
 
 	while (p) {
@@ -98,7 +97,7 @@ struct userNames *outputList() {
 void Die(char *mess) { perror(mess); exit(1); }
 
 void refreshPlayerCount() {
-	struct playerSockets *p = head_p;
+	struct player *p = head;
 	char *plCnt = malloc(sizeof(char) * 3);
 	char *info = malloc(sizeof(char) * 256);
 	unsigned int plLen = 0;
@@ -111,7 +110,7 @@ void refreshPlayerCount() {
 
 	strcat(info, " [");
 
-	struct userNames *n = head;
+	struct player *n = head;
 
 	while (n) {
 		strcat(info, n->name);
@@ -131,7 +130,7 @@ void refreshPlayerCount() {
 		if (send(p->playerfd, info, plLen, 0) != plLen) {
 	      	Die("Refresh mismatch:");
 		}
-
+		
 		p = p->next;
 	}
 }
@@ -154,10 +153,8 @@ void HandleClient(int sock) {
 		//fprintf(stderr, "BAD\n");
 		close(sock);
 	} else {
-		insert_socket(sock);
-
 		//If everything is ok
-		insert_username(mBuff);
+		insert_player(mBuff, sock);
 		outputList();
 		refreshPlayerCount();
 
