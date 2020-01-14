@@ -37,11 +37,11 @@ int getch(){
 void Die(char *mess) { perror(mess); exit(1); }
 
 struct player {
-	char name[17];
-	int score;
-	/*char symbol[2];*/
+  char name[17];
+  int score;
+  /*char symbol[2];*/
 
-	struct player *next;
+  struct player *next;
 };
 
 struct player *head = NULL;
@@ -55,13 +55,13 @@ void deletePlayers(struct player** head)
 
    while (current != NULL)
    {
-   	next = current->next;
-   	free(current);
-   	current = next;
+    next = current->next;
+    free(current);
+    current = next;
    }
 
    /* deref head_ref to affect the real head back
-  	in the caller. */
+    in the caller. */
    *head = NULL;
 }
 
@@ -72,26 +72,26 @@ void printPlayers(struct player** head)
 
    while (current != NULL)
    {
-   	/*printf("%s - %s\n", current->name, current->symbol);*/
-   	printf("%s\n", current->name);
-   	current = current->next;
+    /*printf("%s - %s\n", current->name, current->symbol);*/
+    printf("%s\n", current->name);
+    current = current->next;
    }
 }
 
 void pushPlayers(struct player** head, char* name/*, char* symbol*/)
 {
-	/* allocate node */
-	struct player* new_node = (struct player*) malloc(sizeof(struct player));
+  /* allocate node */
+  struct player* new_node = (struct player*) malloc(sizeof(struct player));
 
-	/* put in the data  */
-	strcpy(new_node->name, name);
-	/*strcpy(new_node->symbol, symbol);*/
+  /* put in the data  */
+  strcpy(new_node->name, name);
+  /*strcpy(new_node->symbol, symbol);*/
 
-	/* link the old list off the new node */
-	new_node->next = *head;
+  /* link the old list off the new node */
+  new_node->next = *head;
 
-	/* move the head to point to the new node */
-	*head = new_node;
+  /* move the head to point to the new node */
+  *head = new_node;
 }
 
 void HandleMessages(int sock) {
@@ -99,36 +99,36 @@ void HandleMessages(int sock) {
   int received = -1;
   /* Receive message */
   if ((received = recv(sock, mBuff, BUFFSIZE, 0)) < 0) {
-	Die("Failed to receive initial bytes from server");
+  Die("Failed to receive initial bytes from server");
   } else {
-	switch (mBuff[0]){
-    	case '2':
-        	print_lobby_info(mBuff);
-        	break;
-    	case '3':
-        	Die("Game in progress");
-        	break;
-    	case '4':
-        	Die("Name is already taken");
-        	break;
-    	case '5':
-        	game_start(mBuff);
-        	break;
-    	case '6':
-        	add_map_row(mBuff);
-        	break;
-    	case '7':
-        	game_update(mBuff);
-        	break;
-    	case '8':
-        	Die("Game over");
-        	break;
-    	case '9':
-        	game_end(mBuff);
-        	break;
-    	default:
-        	printf("%s\n", mBuff);
-	}
+  switch (mBuff[0]){
+      case '2':
+          print_lobby_info(mBuff);
+          break;
+      case '3':
+          Die("Game in progress");
+          break;
+      case '4':
+          Die("Name is already taken");
+          break;
+      case '5':
+          game_start(mBuff);
+          break;
+      case '6':
+          add_map_row(mBuff);
+          break;
+      case '7':
+          game_update(mBuff);
+          break;
+      case '8':
+          Die("Game over");
+          break;
+      case '9':
+          game_end(mBuff);
+          break;
+      default:
+          printf("%s\n", mBuff);
+  }
   }
 
   free(mBuff);
@@ -148,101 +148,101 @@ int get_name(char *fullStr, char *playerName/*, char *symbol*/, int start){
 
 /*lobby info*/
 void print_lobby_info(char *mBuff){
-	char playerCount;
-	int i = 3;                                                                                                                 	 
-	int n = 0;
-	char *playerName = malloc(sizeof(char) * 17);
-	/*char *symbol = malloc(sizeof(char) * 2);*/
+  char playerCount;
+  int i = 3;                                                                                                                   
+  int n = 0;
+  char *playerName = malloc(sizeof(char) * 17);
+  /*char *symbol = malloc(sizeof(char) * 2);*/
 
 /*old list clean*/
-	deletePlayers(&head);
+  deletePlayers(&head);
 /*terminala iztirisana*/
-	system("clear");
+  system("clear");
 
- 	playerCount = mBuff[1];
+  playerCount = mBuff[1];
 
- 	printf("Player count: %c\n", playerCount);
+  printf("Player count: %c\n", playerCount);
 
-	while(mBuff[i] != '}') {
-    	i = i + get_name(mBuff, playerName, i);
+  while(mBuff[i] != '}') {
+      i = i + get_name(mBuff, playerName, i);
 
-        	pushPlayers(&head, playerName);
+          pushPlayers(&head, playerName);
 
-        	if(mBuff[i] == '}'){
-          	break;
-        	} else {i++;}
+          if(mBuff[i] == '}'){
+            break;
+          } else {i++;}
 
-	}
+  }
 
-	printPlayers(&head);
+  printPlayers(&head);
 
 }
 
 int get_number(char* mBuff, int start, int last){
-	int num;
-	num = (mBuff[start]-48)*100;
-	start++;
-	num += (mBuff[start]-48)*10;
-	start++;
-	num += mBuff[start]-48;
-	if (last == 1){
-    	start++;
-	}
+  int num;
+  num = (mBuff[start]-48)*100;
+  start++;
+  num += (mBuff[start]-48)*10;
+  start++;
+  num += mBuff[start]-48;
+  if (last == 1){
+      start++;
+  }
 
-	return num;
+  return num;
 }
 
 void game_start(char* mBuff){
-	int i = 1;
-	int playerCount;
-	char *playerName = malloc(sizeof(char) * 17);
+  int i = 1;
+  int playerCount;
+  char *playerName = malloc(sizeof(char) * 17);
 
-	playerCount = mBuff[i];
+  playerCount = mBuff[i];
 
-	deletePlayers(&head);
+  deletePlayers(&head);
 
-	i += 2;
+  i += 2;
 
-	while(mBuff[i] != '}') {
-    	i = i + get_name(mBuff, playerName, i);
+  while(mBuff[i] != '}') {
+      i = i + get_name(mBuff, playerName, i);
 
-        	pushPlayers(&head, playerName);
+          pushPlayers(&head, playerName);
 
-        	if(mBuff[i] == '}'){
-          	i++;
-          	break;
-        	} else {i++;}
+          if(mBuff[i] == '}'){
+            i++;
+            break;
+          } else {i++;}
 
-	}
+  }
 
-	map_width = get_number(mBuff, i, 0);
-	i+=3;
-	map_height = get_number(mBuff, i, 1);
-	i+=2;
+  map_width = get_number(mBuff, i, 0);
+  i+=3;
+  map_height = get_number(mBuff, i, 1);
+  i+=2;
 
-	/*atmina prieks kartes rindam*/
-	map = (char**)malloc(sizeof(char*)*map_height);
+  /*atmina prieks kartes rindam*/
+  map = (char**)malloc(sizeof(char*)*map_height);
 
 }
 
 void add_map_row(char* mBuff){
-	int i=1;
-	int n=0;
-	int row_num;
-	char* row = (char*)malloc(sizeof(char)*map_width);
+  int i=1;
+  int n=0;
+  int row_num;
+  char* row = (char*)malloc(sizeof(char)*map_width);
 
-	row_num = get_number(mBuff, i, 0);
-	i+=3;
+  row_num = get_number(mBuff, i, 0);
+  i+=3;
 
-	while (n < map_width){
-  	row[n] = mBuff[i];
-  	i++;
-  	n++;
-	}
+  while (n < map_width){
+    row[n] = mBuff[i];
+    i++;
+    n++;
+  }
 
-	row[n] = 0;
+  row[n] = 0;
 
-	map[row_num-1] = row;
+  map[row_num-1] = row;
 }
 
 void game_update(char* mBuff){
@@ -256,7 +256,7 @@ void game_update(char* mBuff){
   char** mapToPrint = (char**)malloc(sizeof(char*)*map_width);
 
   if (game_status = 0){
-	game_status = 1;
+  game_status = 1;
   }
 
   playerCount = mBuff[i]-48;
@@ -264,16 +264,16 @@ void game_update(char* mBuff){
   i += 2;
 
   while (n < playerCount){
-	playersInfo[n][0] = get_number(mBuff, i, 0);
-	i+=3;
-	playersInfo[n][1] = get_number(mBuff, i, 0);
-	i+=3;
-	playersInfo[n][2] = get_number(mBuff, i, 0);
-	i+=3;
-	if(n != playerCount-1){
-  	i++;
-	}
-	n++;
+  playersInfo[n][0] = get_number(mBuff, i, 0);
+  i+=3;
+  playersInfo[n][1] = get_number(mBuff, i, 0);
+  i+=3;
+  playersInfo[n][2] = get_number(mBuff, i, 0);
+  i+=3;
+  if(n != playerCount-1){
+    i++;
+  }
+  n++;
   }
 
   foodCount = mBuff[i]-48;
@@ -281,33 +281,33 @@ void game_update(char* mBuff){
   i += 2;
   n = 0;
   while (n < foodCount){
-	foodCoordinates[n][0] = get_number(mBuff, i, 0);
-	i+=3;
-	foodCoordinates[n][1] = get_number(mBuff, i, 0);
-	i+=3;
-	if (n != foodCount-1){
-  	i++;
-	}
-	n++;
+  foodCoordinates[n][0] = get_number(mBuff, i, 0);
+  i+=3;
+  foodCoordinates[n][1] = get_number(mBuff, i, 0);
+  i+=3;
+  if (n != foodCount-1){
+    i++;
+  }
+  n++;
   }
 
   i = 0;
   for (i;i < map_height;i++){
-  	mapToPrint[i] = (char*)malloc(sizeof(char)*map_width);
-  	strcpy(map[i],mapToPrint[i]);
+    mapToPrint[i] = (char*)malloc(sizeof(char)*map_width);
+    strcpy(map[i],mapToPrint[i]);
   }
   i=0;
   for (i;i < playerCount;i++){
-  	mapToPrint[playersInfo[i][1]][playersInfo[i][0]] = symbols[i];
+    mapToPrint[playersInfo[i][1]][playersInfo[i][0]] = symbols[i];
   }
   i=0;
   for (i;i < foodCount;i++){
-  	mapToPrint[foodCoordinates[i][1]][foodCoordinates[i][0]] = '@';
+    mapToPrint[foodCoordinates[i][1]][foodCoordinates[i][0]] = '@';
   }
   i=0;
   system("clear");
   for (i; i < map_height; i++){
-  	printf("%s\n", mapToPrint[i]);
+    printf("%s\n", mapToPrint[i]);
   }
 
   i=0;
@@ -332,36 +332,36 @@ playerCount = mBuff[i]-48;
 i++;
 
 while(mBuff[i] != '}') {
-    	chars[n] = get_name(mBuff, playerName, i);
+      chars[n] = get_name(mBuff, playerName, i);
 
-    	strcpy(playerName,results[n]);
-    	n++;
-    	if(mBuff[i] == '}'){
-        	break;
-    	} else {i++;}
+      strcpy(playerName,results[n]);
+      n++;
+      if(mBuff[i] == '}'){
+          break;
+      } else {i++;}
 
-	}
+  }
 
-	system("clear");
+  system("clear");
 
-	i = 0;
-	for (i; i < playerCount; i++){
-  	n=0;
-  	while (n < chars[i]-3){
-    	printf("%c", results[i][n]);
-    	n++;
-  	}
+  i = 0;
+  for (i; i < playerCount; i++){
+    n=0;
+    while (n < chars[i]-3){
+      printf("%c", results[i][n]);
+      n++;
+    }
 
-  	printf("\t");
+    printf("\t");
 
-  	while (n < chars[i]){
-    	printf("%c", results[i][n]);
-    	n++;
-  	}
+    while (n < chars[i]){
+      printf("%c", results[i][n]);
+      n++;
+    }
 
-  	Die("\n");
+    Die("\n");
 
-	}
+  }
 
 }
 
@@ -369,88 +369,88 @@ void move(int sock, char c){
 
   char dest[2] = "1";
 
-	switch(c){
-  	case 'w':
-    	dest[1] = 'U';
-    	break;
-  	case 'a':
-    	dest[1] = 'L';
-    	break;
-  	case 's':
-    	dest[1] = 'D';
-    	break;
-  	case 'd':
-    	dest[1] = 'R';
-    	break;
-  	default:
-    	return;
-	}
-	printf("%s\n",dest);
-	send(sock, dest, 2, 0);
+  switch(c){
+    case 'w':
+      dest[1] = 'U';
+      break;
+    case 'a':
+      dest[1] = 'L';
+      break;
+    case 's':
+      dest[1] = 'D';
+      break;
+    case 'd':
+      dest[1] = 'R';
+      break;
+    default:
+      return;
+  }
+  printf("%s\n",dest);
+  send(sock, dest, 2, 0);
 }
 
 int main(int argc, char *argv[]) {
-	int sock;
-	struct sockaddr_in echoserver;
-	char *username = malloc(sizeof(char) * 17);
-	char confirm[2];
-	unsigned int userLen;
-	int received = 0;
-	char c;
-	int lenght;
+  int sock;
+  struct sockaddr_in echoserver;
+  char *username = malloc(sizeof(char) * 17);
+  char confirm[2];
+  unsigned int userLen;
+  int received = 0;
+  char c;
+  int lenght;
 
-	game_status = 0;
+  game_status = 0;
 
-	if (argc != 3) {
-  	fprintf(stderr, "USAGE: TCPecho <server_ip> <port>\n");
-  	exit(1);
-	}
-	/* Create the TCP socket */
-	if ((sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
-  	Die("Failed to create socket");
-	}
+  if (argc != 3) {
+    fprintf(stderr, "USAGE: TCPecho <server_ip> <port>\n");
+    exit(1);
+  }
+  /* Create the TCP socket */
+  if ((sock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
+    Die("Failed to create socket");
+  }
 
-	/* Construct the server sockaddr_in structure */
-	memset(&echoserver, 0, sizeof(echoserver));   	/* Clear struct */
-	echoserver.sin_family = AF_INET;              	/* Internet/IP */
-	echoserver.sin_addr.s_addr = inet_addr(argv[1]);  /* IP address */
-	echoserver.sin_port = htons(atoi(argv[2]));   	/* server port */
-	/* Establish connection */
-	if (connect(sock,
-            	(struct sockaddr *) &echoserver,
-            	sizeof(echoserver)) < 0) {
-  	Die("Failed to connect with server");
-	}
+  /* Construct the server sockaddr_in structure */
+  memset(&echoserver, 0, sizeof(echoserver));     /* Clear struct */
+  echoserver.sin_family = AF_INET;                /* Internet/IP */
+  echoserver.sin_addr.s_addr = inet_addr(argv[1]);  /* IP address */
+  echoserver.sin_port = htons(atoi(argv[2]));     /* server port */
+  /* Establish connection */
+  if (connect(sock,
+              (struct sockaddr *) &echoserver,
+              sizeof(echoserver)) < 0) {
+    Die("Failed to connect with server");
+  }
 
-	printf("Enter your name:\n");
-	scanf("%s", username);
+  printf("Enter your name:\n");
+  scanf("%s", username);
 
-	userLen = strlen(username);
-	lenght = userLen+1;
+  userLen = strlen(username);
+  lenght = userLen+1;
 
-	/*add 0 to message*/
-	for (userLen; userLen > 0; userLen--){
-    	username[userLen] = username[userLen-1];
-	}
-	username[0] = '0';
+  /*add 0 to message*/
+  for (userLen; userLen > 0; userLen--){
+      username[userLen] = username[userLen-1];
+  }
+  username[0] = '0';
     
-	if (send(sock, username, lenght, 0) != lenght) {
-  	Die("Mismatch in number of sent bytes");
-	}
+  if (send(sock, username, lenght, 0) != lenght) {
+    Die("Mismatch in number of sent bytes");
+  }
 
-	for(;;){
+  for(;;){
 
-  	/*server message handler*/
-  	HandleMessages(sock);
+    /*server message handler*/
+    HandleMessages(sock);
 
-  	/*button listener (works only when game in progress)*/
-  	if(game_status == 1){
-      	c = getch();
-      	if (c == 'w' || c == 'a' || c == 's' || c == 'd'){
-        	move(sock, c);
-      	}
-  	}
- 	 
-	}
+    /*button listener (works only when game in progress)*/
+    if(game_status == 1){
+        c = getch();
+        if (c == 'w' || c == 'a' || c == 's' || c == 'd'){
+          move(sock, c);
+        }
+    }
+   
+  }
    
   }
