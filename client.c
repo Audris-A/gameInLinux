@@ -141,7 +141,7 @@ int get_name(char *fullStr, char *playerName/*, char *symbol*/, int start){
 	playerName[i] = fullStr[start];
 	i++;
 	start++;
-  } while (i<16);
+  } while (fullStr[start] != ',' && fullStr[start] != '}');
   playerName[i]=0;
   return i;
 }
@@ -433,14 +433,12 @@ int main(int argc, char *argv[]) {
   for (userLen; userLen > 0; userLen--){
       username[userLen] = username[userLen-1];
   }
-  userLen = lenght;
-  for (userLen; userLen < 16; userLen++){
+  for (userLen; userLen < 17; userLen++){
       username[userLen]=0;
-  }
-
+  } 
   username[0] = '0';
     
-  if (send(sock, username, lenght, 0) != lenght) {
+  if (send(sock, username, 17, 0) != 17) {
     Die("Mismatch in number of sent bytes");
   }
 
