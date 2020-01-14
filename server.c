@@ -1,5 +1,6 @@
 /*
-    Read the map from a file and work with it.
+    Read with 0 username message
+    username format fix 0name\0\0\0\0\0...
 */
 
 #include <stdio.h>
@@ -56,12 +57,6 @@ int checkExistingName(char *name){
 //Izveidot jaunu mezglu player sarakstā
 void insert_player(char *name, int playerfd) 
 {   
-    /*int i = 65 + playerSymbol;
-    char text[2];
-
-    text[0] = (char)i;
-    text[1] = '\0';*/
-
     //Izveido pašu elementu
     struct player *elem = (struct player*) malloc(sizeof(struct player));
 
@@ -108,11 +103,8 @@ char *getPlayers() {
     while (n) {
         strcat(info, n->name);
         fprintf(stderr, "%s\n", n->name);
-        if (n->next != NULL) {
-            strcat(info, ", ");
-        }
 
-       n = n->next;
+        n = n->next;
     }
 
     strcat(info, "}");
@@ -146,7 +138,6 @@ void refreshPlayerCount() {
 }
 
 void HandleClient(int sock) {
-
     char *mBuff = malloc(sizeof(char) * 255);
     int received = -1;
 
@@ -155,8 +146,14 @@ void HandleClient(int sock) {
         Die("Failed to receive initial bytes from client");
     }
 
+    if (mBuff[0] == '0') {
+        memmove(mBuff, mBuff+1, (strlen(mBuff) + 1));
+    } else {
+        //Bad message error
+        close(sock);
+    }
+
     //Username validation.
-    //mBuff[strlen(mBuff) + 1] = '\0';
     if(checkExistingName(mBuff) == 1){
         //fprintf(stderr, "BAD\n");
         if (send(sock, "4\0", 2, 0) != 2) {
@@ -169,15 +166,6 @@ void HandleClient(int sock) {
         insert_player(mBuff, sock);
         outputList();
         refreshPlayerCount();
-
-        //Join thread to first client thread if this isnt the first one
-        /*if (playerCount > 1){
-            sleep(10); // After this, start the game, if 8 players havent connected
-            fprintf(stderr, "Time\n");
-        }*/
-        /*while(playerCount != 30){
-            //
-        }*/
     }// if game has started!!!!!!!!!!!!!
 
     free(mBuff);
@@ -197,6 +185,72 @@ void printClient(int fd) {
 }
 
 //Pa rindai karti nosūtīt
+void sendRow(char *fileName) {
+    FILE *input = fopen(fileName, "r");
+    char *line = NULL;
+    int rowCount = 1;
+
+    size_t len = 0;
+    ssize_t read;
+
+    if (input == NULL) {
+        exit(EXIT_FAILURE);
+    }
+
+    while ((read = getline(&line, &len, input)) != -1) {
+    //while(fgets(line, 92, input)!= NULL) {
+        //fprintf(stdout, "Linija %s garums - %ld\n", line, len);
+        char *infoHolder = malloc(sizeof(char) * 4);
+
+        char *mBuff = malloc(sizeof(char) * 97);
+
+        strcpy(mBuff, "6");
+
+        sprintf(infoHolder, "%d", rowCount);
+
+
+        if (strlen(infoHolder) == 1) {
+            strcat(mBuff, "00");
+        } else if (strlen(infoHolder) == 2) {
+            strcat(mBuff, "0");
+        }
+
+        strcat(mBuff, infoHolder);
+
+        struct player *p = head;
+        unsigned int plLen = 0;
+
+        strcat(mBuff, line);
+        strcat(mBuff, "\0");
+        plLen = strlen(mBuff);
+
+        fprintf(stderr, "> %s\n", mBuff);
+
+        while(p){
+            //send_all(p->playerfd, (void *) mBuff, 96);
+            if (send(p->playerfd, mBuff, plLen, 0) != plLen) {
+                Die("Refresh mismatch:");
+            }
+
+            p = p->next;
+        }
+
+        free(infoHolder);
+        free(mBuff);
+
+        rowCount++;
+    }
+
+    fclose(input);
+
+    /*if (line) {
+        free(line);
+    }*/
+
+    for(;;){
+        //
+    }
+}
 
 void gameStart(char *fileName) {
     FILE *input = fopen(fileName, "r");
@@ -266,65 +320,10 @@ void gameStart(char *fileName) {
         p = p->next;
     }
 
+    free(infoHolder);
+    free(mBuff);
+
     sendRow(fileName);
-}
-
-void sendRow(char *fileName) {
-    FILE *input = fopen(fileName, "r");
-    char * line = NULL;
-    int rowCount = 1;
-
-    size_t len = 0;
-    ssize_t read;
-
-    char *infoHolder = malloc(sizeof(char) * 10);
-
-    char *mBuff = malloc(sizeof(char) * 255);
-
-    if (input == NULL) {
-        exit(EXIT_FAILURE);
-    }
-
-    while ((read = getline(&line, &len, input)) != -1) {
-        strcpy(mBuff, "6");
-
-        sprintf(infoHolder, "%d", rowCount);
-
-        if (strlen(infoHolder) == 1) {
-            strcat(mBuff, "00");
-        } else if (strlen(infoHolder) == 2) {
-            strcat(mBuff, "0");
-        }
-
-        strcat(mBuff, infoHolder);
-
-        struct player *p = head;
-        unsigned int plLen = 0;
-
-        strcat(mBuff, line);
-
-        plLen = strlen(mBuff);
-
-        while(p){
-            if (send(p->playerfd, mBuff, plLen, 0) != plLen) {
-                Die("Refresh mismatch:");
-            }
-
-            p = p->next;
-        }
-
-        rowCount++;
-    }
-
-    fclose(input);
-
-    if (line) {
-        free(line);
-    }
-
-    for(;;){
-        //
-    }
 }
 
 int main(int argc, char *argv[]) {
@@ -363,13 +362,7 @@ int main(int argc, char *argv[]) {
     for (;;) {
         struct sockaddr_in peerAddr;
         socklen_t addrSize = sizeof(peerAddr);
-        //fprintf(stderr, "Beidās taču ne?\n");
-        if (playerCount == 8 || countdownEnded == 1) {
-            // Start game
-            fprintf(stderr, "LETS GOOOOO!\n");
-        }
 
-        //int clientFd = accept(serversock, (struct sockaddr *) &peerAddr, &addrSize);
         int clientFd = accept(serversock, (struct sockaddr *) &peerAddr, &addrSize);
 
         if (clientFd == -1) {
@@ -384,7 +377,6 @@ int main(int argc, char *argv[]) {
         pthread_t clientThread;
         pthread_create(&clientThread, NULL, HandleClient, (void *) clientFd);
         pthread_join(clientThread, joinStatus);
-        fprintf(stderr, "Ended\n");
 
         if (joinStatus != 0) {
             fprintf(stderr, "Join error %d\n", joinStatus);
@@ -406,7 +398,7 @@ int main(int argc, char *argv[]) {
                 }
 
                 retval = select(serversock + 1, &rfds, NULL, NULL, &tv);
-                fprintf(stderr, "Retval - %d\n", retval);
+                //fprintf(stderr, "Retval - %d\n", retval);
                 /* Don't rely on the value of tv now! */
 
                 if (retval == -1){
@@ -422,20 +414,12 @@ int main(int argc, char *argv[]) {
                     pthread_t clientThread;
                     pthread_create(&clientThread, NULL, HandleClient, (void *) clientFd);
                     pthread_join(clientThread, joinStatus);
-                    /* FD_ISSET(0, &rfds) will be true. */
                 } else {
                     fprintf(stderr, "Start game from time\n");
                     //Start game!
                     gameStart(argv[2]);
                 }
             }
-        } else {
-            fprintf(stderr, "Ārpus if\n");
         }
-    }
-
-    printf("In main thread");
-    while(0){
-       //Sit here or a while.
     }
 }
