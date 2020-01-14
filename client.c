@@ -5,6 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <netinet/in.h>
+#include <termios.h>
 
 #define BUFFSIZE 255
 
@@ -18,6 +19,19 @@ char** map; /*map array*/
 int map_width;
 int map_height;
 int game_status; /*0 - waiting for game, 1 - game in progress*/
+
+/*getch function from conio.h (not tested)*/
+int getch(){
+  struct termios oldattr, newattr;
+  int ch;
+  tcgetattr(STDIN_FILENO, &oldattr);
+  newattr = oldattr;
+  newattr.c_lflag &= ~( ICANON | ECHO);
+  tcsetattr(STDIN_FILENO, TCSANOW, &newattr);
+  ch = getchar();
+  tcsetattr(STDIN_FILENO, TCSANOW, &oldattr);
+  return ch;
+}
 
 /*exit with error*/
 void Die(char *mess) { perror(mess); exit(1); }
@@ -431,7 +445,7 @@ int main(int argc, char *argv[]) {
 
     /*button listener (works only when game in progress)*/
     if(game_status == 1){
-        c = getc(stdin);
+        c = getch();
         if (c == 'w' || c == 'a' || c == 's' || c == 'd'){
           move(sock, c);
         }
