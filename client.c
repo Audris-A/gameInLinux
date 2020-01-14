@@ -141,7 +141,7 @@ int get_name(char *fullStr, char *playerName/*, char *symbol*/, int start){
 	playerName[i] = fullStr[start];
 	i++;
 	start++;
-  } while (fullStr[start] != ',' && fullStr[start] != '}');
+  } while (i<16);
   playerName[i]=0;
   return i;
 }
