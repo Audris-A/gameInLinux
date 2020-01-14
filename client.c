@@ -429,9 +429,15 @@ int main(int argc, char *argv[]) {
   lenght = userLen+1;
 
   /*add 0 to message*/
+  
   for (userLen; userLen > 0; userLen--){
       username[userLen] = username[userLen-1];
   }
+  userLen = lenght;
+  for (userLen; userLen < 16; userLen++){
+      username[userLen]=0;
+  }
+
   username[0] = '0';
     
   if (send(sock, username, lenght, 0) != lenght) {
