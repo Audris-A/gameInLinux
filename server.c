@@ -1,8 +1,3 @@
-/*
-    Read with 0 username message
-    username format fix 0name\0\0\0\0\0...
-*/
-
 #include <stdio.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -14,25 +9,12 @@
 
 #define MAXPENDING 30    /* Max connection requests */
 #define BUFFSIZE 100
-#define MAX_MESSAGE 1000
-
-int startCountdown = 0;
-
-int countdownEnded;
-
-static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-    //pthread_mutex_lock(&mutex);
-    // pthread_mutex_unlock(&mutex);
-int playerSymbol = 0;
 
 int playerCount;
-
-struct playerSockets *head_p;
 
 //Player structure
 struct player {
     char name[255];
-    //char symbol[2];
     int playerfd;
 
     struct player *next;
@@ -64,12 +46,6 @@ void insert_player(char *name, int playerfd)
 
     elem->playerfd = playerfd;
 
-    //strcpy(elem->symbol, text);
-
-    //fprintf(stderr, "Symbol - %s\n", elem->symbol);
-
-    playerSymbol++;
-
     //Izveido norādi uz iepriekšējo pirmo elementu
     elem->next = head;
 
@@ -77,32 +53,27 @@ void insert_player(char *name, int playerfd)
     head = elem;
 };
 
-//Izvadīt ListElem sarakstu
-struct player *outputList() {
+struct player *refreshPlayerCount() {
     struct player *p = head;
     playerCount = 0;
 
     while (p) {
-        //printf("%s\n", p->name);
         playerCount++;
         p = p->next;
     }
-    
-    //printf("Players - %d\n", playerCount);
 
     return NULL;
 };
 
 void Die(char *mess) { perror(mess); exit(1); }
 
-char *getPlayers() {
+char *getPlayerUsernames() {
     char *info = malloc(sizeof(char) * 256);
     strcpy(info, "{");
     struct player *n = head;
 
     while (n) {
         strcat(info, n->name);
-        fprintf(stderr, "%s\n", n->name);
 
         n = n->next;
     }
@@ -112,19 +83,23 @@ char *getPlayers() {
     return info;
 }
 
-void refreshPlayerCount() {
+void lobbyInfo() {
     struct player *p = head;
     char *plCnt = malloc(sizeof(char) * 3);
     char *info = malloc(sizeof(char) * 256);
     unsigned int plLen = 0;
+
     strcpy(info, "2");
 
-    outputList();
+    refreshPlayerCount();
+
     sprintf(plCnt, "%d", playerCount);
 
     strcat(info, plCnt);
 
-    strcat(info, getPlayers());
+    strcat(info, getPlayerUsernames());
+
+    strcat(info, "\0");
 
     plLen = strlen(info);
 
@@ -137,11 +112,11 @@ void refreshPlayerCount() {
     }
 }
 
-void HandleClient(int sock) {
+void handleClient(int sock) {
     char *mBuff = malloc(sizeof(char) * 255);
     int received = -1;
 
-    /* Receive username */
+    // Receive username
     if ((received = recv(sock, mBuff, BUFFSIZE, 0)) < 0) {
         Die("Failed to receive initial bytes from client");
     }
@@ -149,24 +124,33 @@ void HandleClient(int sock) {
     if (mBuff[0] == '0') {
         memmove(mBuff, mBuff+1, (strlen(mBuff) + 1));
     } else {
-        //Bad message error
+        // Bad message error
+        char *msg = malloc(sizeof(char) * 255);
+        int msgLen = 0;
+
+        strcpy(msg, "Undefined message!\0");
+
+        msgLen = strlen(msg);
+
+        if (send(sock, msg, msgLen, 0) != msgLen) {
+            Die("Undefined message error:");
+        }
+
+        free(msg);
         close(sock);
     }
 
-    //Username validation.
+    // Username validation.
     if(checkExistingName(mBuff) == 1){
-        //fprintf(stderr, "BAD\n");
         if (send(sock, "4\0", 2, 0) != 2) {
             Die("Existing username mismatch:");
         }
 
         close(sock);
     } else {
-        //If everything is ok
+        // If everything is ok
         insert_player(mBuff, sock);
-        outputList();
-        refreshPlayerCount();
-    }// if game has started!!!!!!!!!!!!!
+    }
 
     free(mBuff);
 }
@@ -184,8 +168,8 @@ void printClient(int fd) {
     printf("%s:%d connected via TCP\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
 }
 
-//Pa rindai karti nosūtīt
-void sendRow(char *fileName) {
+// Map row sending to client
+void sendRow(char *fileName, int lineLength) {
     FILE *input = fopen(fileName, "r");
     char *line = NULL;
     int rowCount = 1;
@@ -194,20 +178,20 @@ void sendRow(char *fileName) {
     ssize_t read;
 
     if (input == NULL) {
-        exit(EXIT_FAILURE);
+        perror("No file:");
+        exit(0);
     }
 
+    // Digest map row
     while ((read = getline(&line, &len, input)) != -1) {
-    //while(fgets(line, 92, input)!= NULL) {
-        //fprintf(stdout, "Linija %s garums - %ld\n", line, len);
         char *infoHolder = malloc(sizeof(char) * 4);
 
-        char *mBuff = malloc(sizeof(char) * 97);
+        char *mBuff = malloc(sizeof(char) * (lineLength + 4));
 
+        // Add message type and row number
         strcpy(mBuff, "6");
 
         sprintf(infoHolder, "%d", rowCount);
-
 
         if (strlen(infoHolder) == 1) {
             strcat(mBuff, "00");
@@ -224,10 +208,7 @@ void sendRow(char *fileName) {
         strcat(mBuff, "\0");
         plLen = strlen(mBuff);
 
-        fprintf(stderr, "> %s\n", mBuff);
-
         while(p){
-            //send_all(p->playerfd, (void *) mBuff, 96);
             if (send(p->playerfd, mBuff, plLen, 0) != plLen) {
                 Die("Refresh mismatch:");
             }
@@ -243,10 +224,6 @@ void sendRow(char *fileName) {
 
     fclose(input);
 
-    /*if (line) {
-        free(line);
-    }*/
-
     for(;;){
         //
     }
@@ -256,7 +233,8 @@ void gameStart(char *fileName) {
     FILE *input = fopen(fileName, "r");
     char * line = NULL;
     int rowCount = 0;
-
+    int gotLineLength = 0;
+    int lineLength = 0;
     size_t len = 0;
     ssize_t read;
 
@@ -273,18 +251,23 @@ void gameStart(char *fileName) {
 
     while ((read = getline(&line, &len, input)) != -1) {
         rowCount++;
+
+        if (gotLineLength == 0) {
+            lineLength = strlen(line);
+            gotLineLength = 1;
+        }
     }
 
     fclose(input);
 
-    //Message type
+    // Message type
     strcpy(mBuff, "5");
     strcat(mBuff, infoHolder);
 
-    //Player usernames
-    strcat(mBuff, getPlayers());
+    // Player usernames
+    strcat(mBuff, getPlayerUsernames());
 
-    //Map x coordinate
+    // Map x coordinate
     sprintf(infoHolder, "%ld", strlen(line));
 
     if (strlen(infoHolder) == 1) {
@@ -295,7 +278,7 @@ void gameStart(char *fileName) {
 
     strcat(mBuff, infoHolder);
 
-    //Map y coordinate
+    // Map y coordinate
     sprintf(infoHolder, "%d", rowCount);
 
     if (strlen(infoHolder) == 1) {
@@ -306,7 +289,9 @@ void gameStart(char *fileName) {
 
     strcat(mBuff, infoHolder);
 
-    //Send GAME_START information to clients
+    strcat(mBuff, "\0");
+
+    // Send GAME_START information to clients
     struct player *p = head;
     unsigned int plLen = 0;
 
@@ -323,42 +308,41 @@ void gameStart(char *fileName) {
     free(infoHolder);
     free(mBuff);
 
-    sendRow(fileName);
+    sendRow(fileName, lineLength);
 }
 
 int main(int argc, char *argv[]) {
-    int serversock; //clientsock;
-    struct sockaddr_in echoserver; //echoclient;
-    int joinStatus = 0;
-    countdownEnded = 0;
+    int serversock; 
+    struct sockaddr_in server;
+    int threadJoinStatus = 0;
 
     if (argc < 3) {
-        fprintf(stderr, "USAGE: echoserver <port> <path to map>\n");
+        fprintf(stderr, "USAGE: server <port> <path to map>\n");
         exit(1);
     }
 
-    /* Create the TCP socket */
+    // Create the TCP socket
     if ((serversock = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
         Die("Failed to create socket");
     }
 
-    /* Construct the server sockaddr_in structure */
-    memset(&echoserver, 0, sizeof(echoserver));       /* Clear struct */
-    echoserver.sin_family = AF_INET;                  /* Internet/IP */
-    echoserver.sin_addr.s_addr = htonl(INADDR_ANY);   /* Incoming addr */
-    echoserver.sin_port = htons(atoi(argv[1]));       /* server port */
+    // Construct the server sockaddr_in structure
+    memset(&server, 0, sizeof(server));           // Clear struct
+    server.sin_family = AF_INET;                  // Internet/IP
+    server.sin_addr.s_addr = htonl(INADDR_ANY);   // Incoming addr
+    server.sin_port = htons(atoi(argv[1]));       // server port 
 
-    /* Bind the server socket */
-    if (bind(serversock, (struct sockaddr *) &echoserver, sizeof(echoserver)) < 0) {
+    // Bind the server socket
+    if (bind(serversock, (struct sockaddr *) &server, sizeof(server)) < 0) {
         Die("Failed to bind the server socket");
     }
 
-    /* Listen on the server socket */
+    // Listen on the server socket
     if (listen(serversock, MAXPENDING) < 0) {
         Die("Failed to listen on server socket");
     }
 
-    // cikls, kurā uz TCP soketa tiek akceptēti jauni klienti
+    // Accept new clients
     for (;;) {
         struct sockaddr_in peerAddr;
         socklen_t addrSize = sizeof(peerAddr);
@@ -370,18 +354,22 @@ int main(int argc, char *argv[]) {
             return -1;
         }
 
-        //Output client info
+        // Output client info
         printClient(clientFd);
 
-        //Create client thread
+        // Create client thread
         pthread_t clientThread;
-        pthread_create(&clientThread, NULL, HandleClient, (void *) clientFd);
-        pthread_join(clientThread, joinStatus);
+        pthread_create(&clientThread, NULL, handleClient, (void *) clientFd);
+        pthread_join(clientThread, threadJoinStatus);
 
-        if (joinStatus != 0) {
-            fprintf(stderr, "Join error %d\n", joinStatus);
+        refreshPlayerCount();
+        lobbyInfo();
+
+        if (threadJoinStatus != 0) {
+            fprintf(stderr, "Join error %d\n", threadJoinStatus);
         }
 
+        // Accept clients for 10 seconds after player count is bigger than 2
         if (playerCount > 1) {
             fd_set rfds;
             struct timeval tv;
@@ -392,31 +380,30 @@ int main(int argc, char *argv[]) {
 
             for(;;){
                 if (playerCount > 7) {
-                    //Start game!!!!
-                    fprintf(stderr, "Start game from count\n");
-                    gameStart(argv[3]);
+                    // Start the game because we already have 8 players connected
+                    gameStart(argv[2]);
                 }
 
                 retval = select(serversock + 1, &rfds, NULL, NULL, &tv);
-                //fprintf(stderr, "Retval - %d\n", retval);
-                /* Don't rely on the value of tv now! */
 
                 if (retval == -1){
-                    perror("select()");
+                    perror("Bad select():");
                 } else if (retval){
-                    printf("Data is available now.\n");
+                    // Data is available
                     int clientFd = accept(serversock, (struct sockaddr *) &peerAddr, &addrSize);
 
-                    //Output client info
+                    // Output client info
                     printClient(clientFd);
 
-                    //Create client thread
+                    // Create client thread
                     pthread_t clientThread;
-                    pthread_create(&clientThread, NULL, HandleClient, (void *) clientFd);
-                    pthread_join(clientThread, joinStatus);
+                    pthread_create(&clientThread, NULL, handleClient, (void *) clientFd);
+                    pthread_join(clientThread, threadJoinStatus);
+
+                    refreshPlayerCount();
+                    lobbyInfo();
                 } else {
-                    fprintf(stderr, "Start game from time\n");
-                    //Start game!
+                    // Timer ended, so start the game
                     gameStart(argv[2]);
                 }
             }
