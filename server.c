@@ -14,7 +14,7 @@ int playerCount;
 
 //Player structure
 struct player {
-    char name[255];
+    char name[17];
     int playerfd;
 
     struct player *next;
