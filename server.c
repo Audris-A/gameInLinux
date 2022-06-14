@@ -6,6 +6,8 @@
 #include <unistd.h>
 #include <netinet/in.h>
 #include <pthread.h>
+#include <time.h>
+#include <poll.h>
 
 #define MAXPENDING 30    /* Max connection requests */
 #define BUFFSIZE 100
@@ -16,11 +18,24 @@ int playerCount;
 struct player {
     char name[17];
     int playerfd;
+    int x;
+    int y;
 
     struct player *next;
 };
 
 struct player *head;
+
+int starting_positions[8][2] = {
+        {2, 2},
+        {6, 3},
+        {0,0},
+        {0,0},
+        {0,0},
+        {0,0},
+        {0,0},
+        {0,0}
+    };
 
 int checkExistingName(char *name){
     struct player *p = head;
@@ -45,6 +60,9 @@ void insert_player(char *name, int playerfd)
     strcpy(elem->name, name);
 
     elem->playerfd = playerfd;
+
+    elem->x = starting_positions[playerCount][0];
+    elem->y = starting_positions[playerCount][1];
 
     //Izveido norādi uz iepriekšējo pirmo elementu
     elem->next = head;
@@ -76,6 +94,9 @@ char *getPlayerUsernames() {
         strcat(info, n->name);
 
         n = n->next;
+        if (n) {
+            strcat(info, ":");
+        }
     }
 
     strcat(info, "}");
@@ -153,6 +174,7 @@ void handleClient(int sock) {
     }
 
     free(mBuff);
+    pthread_exit(NULL);
 }
 
 // izdrukā klienta informāciju
@@ -208,7 +230,10 @@ void sendRow(char *fileName, int lineLength) {
         strcat(mBuff, "\0");
         plLen = strlen(mBuff);
 
+        usleep(10000);
+
         while(p){
+            //printf("%s", mBuff);
             if (send(p->playerfd, mBuff, plLen, 0) != plLen) {
                 Die("Refresh mismatch:");
             }
@@ -224,9 +249,9 @@ void sendRow(char *fileName, int lineLength) {
 
     fclose(input);
 
-    for(;;){
+    /*for(;;){
         //
-    }
+    }*/
 }
 
 void gameStart(char *fileName) {
@@ -309,6 +334,253 @@ void gameStart(char *fileName) {
     free(mBuff);
 
     sendRow(fileName, lineLength);
+
+    // launch game update?
+    //game_update();
+
+    //for(;;){
+    
+    // Call client move listener thread creation
+    //move_listener();
+
+    game_update();
+    //}
+}
+
+void set_new_coordinates(int pl_fd, int x, int y){
+    struct player *p = head;
+
+    while(p){
+        if (p->playerfd == pl_fd){
+            if (x == -1){
+                --p->x;
+            } else if (x == 1){
+                ++p->x;
+            }
+
+            if (y == -1){
+                --p->y;
+            } else if (y == 1){
+                ++p->y;
+            }
+
+            printf("new cords: %d %d\n", p->x, p->y);
+
+            break;
+        }
+
+        p = p->next;
+    }
+}
+
+void move_listener(struct pollfd * fds) {
+    //struct numbers *pl = (struct numbers *) _pl;
+
+    //struct pollfd fds[playerCount];
+
+    //memset(fds, 0 , sizeof(fds));
+    //printf("Process client: %d\n", ((struct player*) pl)->playerfd);
+
+    //fds[0].fd = ((struct player*) pl)->playerfd;
+    //fds[0].events = POLLIN;
+
+    int rc;
+
+    rc = poll(fds, playerCount, 95); 
+
+    /***********************************************************/
+    /* Check to see if the poll call failed.                   */
+    /***********************************************************/
+    if (rc < 0)
+    {
+      //printf("  poll() failed\n");
+      //break;
+    }
+
+    /***********************************************************/
+    /* Check to see if the time out expired.          */
+    /***********************************************************/
+    if (rc == 0)
+    {
+      //printf("  poll() timed out.\n");
+      //break;
+    }
+
+    int k = 0;
+    for (;k < playerCount; k++){
+        // if(fds[k].revents != POLLIN)
+        // {
+        //     printf("  Error! revents = %d\n", fds[k].revents);
+        // } else 
+
+        //printf("testing: %d\n", fds[k].fd);
+        char *recvBuff = malloc(sizeof(char) * 3);
+        if (fds[k].revents == POLLIN) {
+            printf("received data\n");
+            rc = recv(fds[k].fd, recvBuff, 3, MSG_DONTWAIT); // sizeof(buffer)
+            if (rc < 0)
+            {
+                //printf("\n\n reading failed\n\n");
+            } else {
+                printf("\n\nrecv from client %d info: %s %c\n\n", fds[k].fd, recvBuff, recvBuff[1]);
+                int x_out = 0;
+                int y_out = 0;
+
+                switch (recvBuff[1]){
+                  case 'U':
+                    y_out = -1;
+                    break;
+                    //--((struct player*) pl)->y;
+                  case 'R':
+                    x_out = 1;
+                    break;
+                    //++((struct player*) pl)->x;
+                  case 'D':
+                    y_out = 1;
+                    break;
+                    //++((struct player*) pl)->y;
+                  case 'L':
+                    x_out = -1;
+                    break;
+                    //--((struct player*) pl)->x;
+                  default:
+                      printf("unrecognized movement\n");
+                }
+
+                set_new_coordinates(fds[k].fd, x_out, y_out);
+            }
+        }
+
+        free(recvBuff);
+    }
+    
+    //pthread_exit(NULL);
+}
+
+void game_update(){
+
+    for(;;){
+        char *mBuff = malloc(sizeof(char) * 255);
+        int i = 2;
+
+        //memset(mBuff, 0, sizeof(mBuff));
+
+        mBuff[0] = '7';
+        mBuff[1] = 48+playerCount;
+
+        struct player *p = head;
+
+        //pthread_t clientThreads[8];
+
+        //struct player *players[8];
+
+        struct pollfd * fds = malloc(sizeof(struct pollfd) * playerCount);
+
+        //memset(fds, 0 , sizeof(fds));
+
+        int j = 0;
+        while(p){
+            //printf("u p->x = %d\n", p->x);
+            //printf("u p->y = %d\n", p->y);
+
+            fds[j].fd = p->playerfd;
+            fds[j].events = POLLIN;
+            j++;
+            //int received = -1;
+            //char *recvBuff = malloc(sizeof(char) * 255);
+            //int rc;
+            //int threadJoinStatus = 0;
+
+            // struct player *args = calloc(sizeof (struct player), 1);
+            // args->playerfd = p->playerfd;
+            // args->x = p->x;
+            // args->y = p->y;
+
+            // Start to listen for moves in seperate thread
+            //pthread_t clientThread;
+            //pthread_create(&clientThread, NULL, move_listener, (void *) p);//(void *) p // ->playerfd
+            //clientThreads[j] = clientThread;
+            //players[j] = args;
+            //pthread_join(clientThread, threadJoinStatus); 
+            //j++;
+
+            // if (threadJoinStatus != 0) {
+            //     fprintf(stderr, "update join error %d\n\n\n", threadJoinStatus);
+            // }
+            
+            /*if ((received = recv(fd, recvBuff, 1, MSG_DONTWAIT)) < 0) {
+                printf("recv from client %d info: %s\n", p->playerfd, recvBuff);
+            } //else {*/
+
+            p = p->next;
+        }
+
+        //j--;
+
+        move_listener(fds);
+
+        //printf("Main sleep\n\n");
+        usleep(100000);
+
+        // int threadJoinStatus = 0;
+        // for (;j > 0; j--) {
+        //     pthread_join(clientThreads[j], threadJoinStatus); 
+
+        //     if (threadJoinStatus != 0) {
+        //         fprintf(stderr, "update join error %d\n\n\n", threadJoinStatus);
+        //     }
+
+        //     free(players[j]);
+        // }
+
+        //printf("Main woke up\n\n");
+        p = head;
+
+        while(p){
+            mBuff[i] = (p->x)/10 + 48;
+            i++;
+            mBuff[i] = ((p->x) % 10) + 48;
+            i++;
+
+            mBuff[i] = (p->y)/10 + 48;
+            i++;
+            mBuff[i] = ((p->y) % 10) + 48;
+            i++;
+            // }
+
+            p = p->next;
+
+            if (p) {
+                mBuff[i] = ':';
+                i++;
+            }  
+
+        }
+
+        mBuff[i] = '\0';
+
+        printf("usr info: %s\n", mBuff);
+
+        unsigned int plLen = strlen(mBuff);
+
+        printf("garums = %d\n", plLen);
+
+        p = head;
+        // Send the new info to players
+        while(p){
+            if (send(p->playerfd, mBuff, plLen, 0) != plLen) {
+                Die("Player update fail:");
+            }
+
+            p = p->next;
+        }
+
+        free(mBuff);
+        mBuff = NULL;
+
+        free(fds);
+        fds = NULL;
+    }
 }
 
 int main(int argc, char *argv[]) {
@@ -375,7 +647,7 @@ int main(int argc, char *argv[]) {
             struct timeval tv;
             int retval;
 
-            tv.tv_sec = 10;
+            tv.tv_sec = 2;
             tv.tv_usec = 0;
 
             for(;;){

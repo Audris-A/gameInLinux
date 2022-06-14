@@ -3,10 +3,10 @@
 all: server client
 
 server:
-	$(CC) -g -Wall server.c common.c -o server -lpthread
+	$(CC) -g -Wall server.c -o server -lpthread
 
 client:
-	$(CC) -g -Wall client.c common.c -o client
+	$(CC) -g -Wall client.c -o client -lpthread
 
 clean:
 	rm -f server client
