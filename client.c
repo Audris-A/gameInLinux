@@ -6,6 +6,9 @@
 #include <unistd.h>
 #include <netinet/in.h>
 #include <termios.h>
+#include <pthread.h>
+#include <time.h>
+#include <poll.h>
 
 #define BUFFSIZE 255
 
@@ -19,6 +22,10 @@ char** map; /*map array*/
 int map_width;
 int map_height;
 int game_status; /*0 - waiting for game, 1 - game in progress*/
+
+
+int got_init_player_count = 0;
+int init_player_count = 0;
 
 /*getch function from conio.h (not tested)*/
 int getch(){
@@ -38,7 +45,7 @@ void Die(char *mess) { perror(mess); exit(1); }
 
 struct player {
   char name[17];
-  int score;
+  //int score;
   /*char symbol[2];*/
 
   struct player *next;
@@ -72,7 +79,7 @@ void printPlayers(struct player** head)
 
    while (current != NULL)
    {
-    /*printf("%s - %s\n", current->name, current->symbol);*/
+    //printf("%s - %s\n", current->name, current->symbol);
     printf("%s\n", current->name);
     current = current->next;
    }
@@ -82,6 +89,8 @@ void pushPlayers(struct player** head, char* name/*, char* symbol*/)
 {
   /* allocate node */
   struct player* new_node = (struct player*) malloc(sizeof(struct player));
+
+  //printf("newplayer\n");
 
   /* put in the data  */
   strcpy(new_node->name, name);
@@ -98,26 +107,49 @@ void HandleMessages(int sock) {
   char *mBuff = malloc(sizeof(char) * 255);
   int received = -1;
   /* Receive message */
-  if ((received = recv(sock, mBuff, BUFFSIZE, 0)) < 0) {
+  if ((received = recv(sock, mBuff, BUFFSIZE, 0)) < 0) { // game_status == 0 && || (game_status == 1 && (received = recv(sock, mBuff, 11, 0)) < 0)
   Die("Failed to receive initial bytes from server");
   } else {
   switch (mBuff[0]){
       case '2':
           print_lobby_info(mBuff);
+          printf("lobby\n");
           break;
       case '3':
+          printf("game\n");
           Die("Game in progress");
           break;
       case '4':
           Die("Name is already taken");
           break;
       case '5':
+          printf("start\n");
           game_start(mBuff);
           break;
       case '6':
+          //printf("%s\n", mBuff);
           add_map_row(mBuff);
           break;
       case '7':
+          /*system("clear");
+          if (game_status == 0){
+            game_status = 1;
+          }
+
+          printf("recv: %s\n", mBuff);*/
+
+          /*int buffLen = 2+5*(mBuff[1]-48)-1; // other chars are junk
+          char *updatebuff = malloc(sizeof(char) * buffLen + 1);
+
+          strncpy(updatebuff, mBuff, buffLen);
+          updatebuff[buffLen] = '\0';
+
+          printf("recv: %s\n", updatebuff);
+
+
+          free(updatebuff);*/
+
+          //printf("7\n\n");
           game_update(mBuff);
           break;
       case '8':
@@ -126,8 +158,8 @@ void HandleMessages(int sock) {
       case '9':
           game_end(mBuff);
           break;
-      default:
-          printf("%s\n", mBuff);
+      //default:
+          //printf("DEFAULT %s\n", mBuff);
   }
   }
 
@@ -137,11 +169,12 @@ void HandleMessages(int sock) {
 int get_name(char *fullStr, char *playerName/*, char *symbol*/, int start){
   int i=0;
  
-  do {
-	playerName[i] = fullStr[start];
-	i++;
-	start++;
-  } while (i<16);
+  while (i<16 && fullStr[start + i] != ':' && fullStr[start + i] != '}') {
+    //printf("%c\n", fullStr[start + i]);
+    playerName[i] = fullStr[start + i];
+    i++;
+  }
+  
   playerName[i]=0;
   return i;
 }
@@ -159,30 +192,55 @@ void print_lobby_info(char *mBuff){
 /*terminala iztirisana*/
   system("clear");
 
+  if (got_init_player_count == 0){
+    init_player_count = mBuff[1] - 48;
+
+    got_init_player_count = 1;
+
+    printf("init_player_count = %d\n", init_player_count);
+  }
+
   playerCount = mBuff[1];
 
   printf("Player count: %c\n", playerCount);
+  //printf("%s\n\n", mBuff);
 
   while(mBuff[i] != '}') {
-      i = i + get_name(mBuff, playerName, i);
+    int k = get_name(mBuff, playerName, i);
+    i = i + k;
 
-          pushPlayers(&head, playerName);
+    pushPlayers(&head, playerName);
 
-          if(mBuff[i] == '}'){
-            break;
-          } else {i++;}
+    //printf("k = %d, s = %s\n", k, playerName);
+    //printf("strbuf = %c\n", mBuff[i]);
 
+    if (mBuff[i] == '}') {
+      break;
+    } else {i++;}
   }
 
   printPlayers(&head);
-
 }
 
-int get_number(char* mBuff, int start, int last){
+int get_number_map_rows(char* mBuff, int start, int last){
   int num;
   num = (mBuff[start]-48)*100;
   start++;
   num += (mBuff[start]-48)*10;
+  start++;
+  num += mBuff[start]-48;
+  if (last == 1){
+      start++;
+  }
+
+  return num;
+}
+
+int get_number(char* mBuff, int start, int last){
+  int num;
+  //num = (mBuff[start]-48)*100;
+  //start++;
+  num = (mBuff[start]-48)*10;
   start++;
   num += mBuff[start]-48;
   if (last == 1){
@@ -204,25 +262,25 @@ void game_start(char* mBuff){
   i += 2;
 
   while(mBuff[i] != '}') {
-      i = i + get_name(mBuff, playerName, i);
+    i = i + get_name(mBuff, playerName, i);
 
-          pushPlayers(&head, playerName);
+    pushPlayers(&head, playerName);
 
-          if(mBuff[i] == '}'){
-            i++;
-            break;
-          } else {i++;}
-
+    if(mBuff[i] == '}'){
+      i++;
+      break;
+    } else {i++;}
   }
 
-  map_width = get_number(mBuff, i, 0);
+  //printf("meta = %s\n", mBuff);
+
+  map_width = get_number_map_rows(mBuff, i, 0);
   i+=3;
-  map_height = get_number(mBuff, i, 1);
+  map_height = get_number_map_rows(mBuff, i, 1);
   i+=2;
 
   /*atmina prieks kartes rindam*/
   map = (char**)malloc(sizeof(char*)*map_height);
-
 }
 
 void add_map_row(char* mBuff){
@@ -231,7 +289,7 @@ void add_map_row(char* mBuff){
   int row_num;
   char* row = (char*)malloc(sizeof(char)*map_width);
 
-  row_num = get_number(mBuff, i, 0);
+  row_num = get_number_map_rows(mBuff, i, 0);
   i+=3;
 
   while (n < map_width){
@@ -243,6 +301,8 @@ void add_map_row(char* mBuff){
   row[n] = 0;
 
   map[row_num-1] = row;
+
+  printf("%s", map[row_num-1]);
 }
 
 void game_update(char* mBuff){
@@ -251,72 +311,110 @@ void game_update(char* mBuff){
   int playerCount;
   int playersInfo[8][3]; /*1-x, 2-y, 3-points*/
   int foodCount;
-  int foodCoordinates[5][2]; /*1-x, 2-y*/
-  char symbols[8] = {'A','B','C','D','E','F','G','H'};
+  int foodCoordinates[16][2]; /*1-x, 2-y*/
+  int scores[8];
+  char symbols[8];// = {'A','B','C','D','E','F','G','H'};
   char** mapToPrint = (char**)malloc(sizeof(char*)*map_width);
 
-  if (game_status = 0){
-  game_status = 1;
+  int myScore = 0;
+
+  //printf("\n\nGAME UPDATE!!!\n\n");
+
+  if (game_status == 0){
+    game_status = 1;
   }
 
   playerCount = mBuff[i]-48;
 
-  i += 2;
+  i++;
 
   while (n < playerCount){
-  playersInfo[n][0] = get_number(mBuff, i, 0);
-  i+=3;
-  playersInfo[n][1] = get_number(mBuff, i, 0);
-  i+=3;
-  playersInfo[n][2] = get_number(mBuff, i, 0);
-  i+=3;
-  if(n != playerCount-1){
+    symbols[n] = mBuff[i];
     i++;
-  }
-  n++;
+
+    playersInfo[n][0] = get_number(mBuff, i, 0);
+    i+=2;
+    playersInfo[n][1] = get_number(mBuff, i, 0);
+    i+=2;
+    playersInfo[n][2] = get_number(mBuff, i, 0);
+    i+=2;
+
+    scores[n] = playersInfo[n][0];
+    
+    // if (n == (init_player_count - 1)){
+    //   myScore = playersInfo[n][0];
+    // }
+
+    if(n != playerCount-1){
+      i++;
+    }
+    n++;
   }
 
-  foodCount = mBuff[i]-48;
+  //foodCount = mBuff[i]-48;
 
-  i += 2;
+  i++;
   n = 0;
-  while (n < foodCount){
-  foodCoordinates[n][0] = get_number(mBuff, i, 0);
-  i+=3;
-  foodCoordinates[n][1] = get_number(mBuff, i, 0);
-  i+=3;
-  if (n != foodCount-1){
+  while (mBuff[i] != 'e'){
+    foodCoordinates[n][0] = get_number(mBuff, i, 0);
+    i+=2;
+    foodCoordinates[n][1] = get_number(mBuff, i, 0);
+    i+=2;
+    //if (n != foodCount-1){
     i++;
+    //}
+    n++;
+
+    //printf("food cnt = %d\n", n);
   }
-  n++;
-  }
+
+  //printf("food cnt = %d\n", n);
+  foodCount = n;
 
   i = 0;
   for (i;i < map_height;i++){
     mapToPrint[i] = (char*)malloc(sizeof(char)*map_width);
-    strcpy(map[i],mapToPrint[i]);
+    strcpy(mapToPrint[i], map[i]);
   }
+
   i=0;
-  for (i;i < playerCount;i++){
-    mapToPrint[playersInfo[i][1]][playersInfo[i][0]] = symbols[i];
+  for (;i < playerCount;i++){
+    //printf("pii1 %d\n", playersInfo[i][1]);
+    //printf("pii0 %d\n", playersInfo[i][0]);
+    //printf("sym %c\n", symbols[i]);
+    mapToPrint[playersInfo[i][2]][playersInfo[i][1]] = symbols[i];
   }
+
   i=0;
   for (i;i < foodCount;i++){
     mapToPrint[foodCoordinates[i][1]][foodCoordinates[i][0]] = '@';
   }
+
   i=0;
   system("clear");
-  for (i; i < map_height; i++){
-    printf("%s\n", mapToPrint[i]);
+
+  //printf("Score = %d\n", myScore);
+
+  printf("Score table:\n");
+  for (; i < playerCount; i++){
+    if (i ==  playerCount - init_player_count){
+      printf("You -> Player %c: %d\n", symbols[i], scores[i]);
+    } else {
+      printf("       Player %c: %d\n", symbols[i], scores[i]);
+    }
   }
 
-  i=0;
+  i = 0;
+  for (i; i < map_height; i++){
+    printf("%s", mapToPrint[i]);
+  }
+
+  //printf("alive5\n");
+
+  /*i=0;
   for  (i;i < playerCount;i++){
 
-  }
-
-
-
+  }*/
 }
 
 void game_end(char* mBuff){
@@ -327,18 +425,18 @@ void game_end(char* mBuff){
   char results[8][20];
   int chars[8];
 
-playerCount = mBuff[i]-48;
+  playerCount = mBuff[i]-48;
 
-i++;
+  i++;
 
-while(mBuff[i] != '}') {
-      chars[n] = get_name(mBuff, playerName, i);
+  while(mBuff[i] != '}') {
+    chars[n] = get_name(mBuff, playerName, i);
 
-      strcpy(playerName,results[n]);
-      n++;
-      if(mBuff[i] == '}'){
-          break;
-      } else {i++;}
+    strcpy(playerName,results[n]);
+    n++;
+    if(mBuff[i] == '}'){
+        break;
+    } else {i++;}
 
   }
 
@@ -362,12 +460,11 @@ while(mBuff[i] != '}') {
     Die("\n");
 
   }
-
 }
 
 void move(int sock, char c){
 
-  char dest[2] = "1";
+  char dest[3] = "1";
 
   switch(c){
     case 'w':
@@ -385,8 +482,28 @@ void move(int sock, char c){
     default:
       return;
   }
-  printf("%s\n",dest);
-  send(sock, dest, 2, 0);
+  dest[2] = '\0';
+
+  //printf("%s\n",dest);
+  send(sock, dest, 3, 0);
+}
+
+void control_char(int sock){
+  char c;
+
+  /*button listener (works only when game in progress)*/
+  for (;;){
+    if(game_status == 1){
+      c = getch();
+
+      if (c == 'w' || c == 'a' || c == 's' || c == 'd'){
+        move(sock, c);
+      }
+
+      c = '0';
+    }
+  }
+  
 }
 
 int main(int argc, char *argv[]) {
@@ -438,19 +555,28 @@ int main(int argc, char *argv[]) {
     Die("Mismatch in number of sent bytes");
   }
 
+  int threadJoinStatus = 0;
+  pthread_t clientThread;
+  pthread_create(&clientThread, NULL, control_char, sock);
+  //pthread_join(clientThread, threadJoinStatus);
+
   for(;;){
 
     /*server message handler*/
     HandleMessages(sock);
 
-    /*button listener (works only when game in progress)*/
-    if(game_status == 1){
-        c = getch();
-        if (c == 'w' || c == 'a' || c == 's' || c == 'd'){
-          move(sock, c);
-        }
-    }
+    // /*button listener (works only when game in progress)*/
+    // if(game_status == 1){
+    //     c = getch();
+    //     printf("After get char\n");
+
+    //     if (c == 'w' || c == 'a' || c == 's' || c == 'd'){
+    //       move(sock, c);
+    //     }
+
+    //     c = '0';
+    // }
    
   }
    
-  }
+}
