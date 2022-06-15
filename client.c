@@ -23,6 +23,7 @@ int map_width;
 int map_height;
 int game_status; /*0 - waiting for game, 1 - game in progress*/
 int lost;
+int my_score = 0;
 
 struct scoreboard {
   char player_symbol;
@@ -164,17 +165,17 @@ void HandleMessages(int sock) {
   switch (mBuff[0]){
       case '2':
           print_lobby_info(mBuff);
-          printf("lobby\n");
+          //printf("lobby\n");
           break;
       case '3':
-          printf("game\n");
+          //printf("game\n");
           Die("Game in progress");
           break;
       case '4':
           Die("Name is already taken");
           break;
       case '5':
-          printf("start\n");
+          //printf("start\n");
           game_start(mBuff);
           break;
       case '6':
@@ -211,7 +212,7 @@ void HandleMessages(int sock) {
           break;
       case '9':
           game_end(mBuff);
-          exit_peacfullly("You win! Your score: \n");
+          exit_peacfullly("\n");
           //Die("\n");
           break;
       //default:
@@ -247,13 +248,15 @@ void print_lobby_info(char *mBuff){
   deletePlayers(&head);
 /*terminala iztirisana*/
   system("clear");
+  
+  printf("Lobby.\n\n");
 
   if (got_init_player_count == 0){
     init_player_count = mBuff[1] - 48;
 
     got_init_player_count = 1;
 
-    printf("init_player_count = %d\n", init_player_count);
+    //printf("init_player_count = %d\n", init_player_count);
   }
 
   playerCount = mBuff[1];
@@ -372,8 +375,6 @@ void game_update(char* mBuff){
   char symbols[8];// = {'A','B','C','D','E','F','G','H'};
   char** mapToPrint = (char**)malloc(sizeof(char*)*map_width);
 
-  int myScore = 0;
-
   //printf("\n\nGAME UPDATE!!!\n\n");
 
   if (game_status == 0){
@@ -490,12 +491,21 @@ void game_update(char* mBuff){
   struct scoreboard *p = head_score;
 
   if (lost == 1) {
-    printf("You lost!\n");
+    printf("You lost! :( Your score: %d\n", my_score);
   }
 
   printf("Score table:\n");
+  i = 0;
   while(p){
-    printf("Player %c: %d\n", p->player_symbol, p->score);
+    if (lost == 0 && symbols[playerCount - init_player_count] == p->player_symbol){
+      printf("You -> Player %c: %d\n", p->player_symbol, p->score);
+      my_score = p->score;
+    } else {
+      printf("       Player %c: %d\n", p->player_symbol, p->score);
+    }
+
+    i++;
+
     p = p->next;
   }
 
@@ -511,7 +521,7 @@ void game_update(char* mBuff){
   for (i; i < map_height; i++){
     printf("%s", mapToPrint[i]);
   }
-  printf("%s\n", mBuff);
+  //printf("%s\n", mBuff);
 
   //printf("alive5\n");
 
@@ -546,7 +556,7 @@ void game_end(char* mBuff){
 
   system("clear");
 
-  printf("You win! Your score: ");
+  printf("\nCongratulations, you won!\n Your score: %d\n\n", my_score);
 
   /*i = 0;
   for (i; i < playerCount; i++){
