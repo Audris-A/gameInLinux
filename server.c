@@ -13,6 +13,8 @@
 #define BUFFSIZE 100
 
 int playerCount;
+int serversock;
+int new_player_count;
 
 char** map;
 
@@ -24,6 +26,7 @@ struct player {
     int y;
     int score;
     char symbol;
+    int dead;
 
     struct player *next;
 };
@@ -36,12 +39,12 @@ int symbol_it = 0;
 int starting_positions[8][2] = {
         {1, 1},
         {89, 29},
-        {0,0},
-        {0,0},
-        {0,0},
-        {0,0},
-        {0,0},
-        {0,0}
+        {34,13},
+        {1,29},
+        {88,1},
+        {1,14},
+        {89,14},
+        {44,1}
     };
 
 
@@ -95,6 +98,8 @@ void insert_player(char *name, int playerfd)
     elem->score = 0;
 
     elem->symbol = symbols[symbol_it];
+
+    elem->dead = 0;
 
     symbol_it++;
 
@@ -398,6 +403,8 @@ void gameStart(char *fileName) {
     // Call client move listener thread creation
     //move_listener();
 
+    new_player_count = playerCount;
+
     game_update();
     //}
 }
@@ -405,13 +412,120 @@ void gameStart(char *fileName) {
 int check_for_found_food(int x, int y){
     int k = 0;
     for (; k < food_count; k++){
-        if (food_positions[k][0] == x && food_positions[k][1] == y){
+        if (food_positions[k][2] != 1 && food_positions[k][0] == x && food_positions[k][1] == y){
             food_positions[k][2] = 1; 
             return 1;
         }
     }
 
     return 0;
+}
+
+int get_players_alive(){
+    struct player *p = head;
+    int cnt = 0;
+
+    while(p){
+        if (p->dead == 0){
+            cnt++;
+        }
+
+        p = p->next;
+    }
+
+    return cnt;
+}
+
+void check_if_a_player_has_won(){
+    if (get_players_alive() == 1){
+        // End game
+
+        struct player *p = head;
+        char *mBuff = malloc(sizeof(char) * 2);
+
+        while(p){
+            if (p->dead == 0){
+                mBuff[0] = '9';
+                mBuff[1] = '\0';
+
+                if (send(p->playerfd , mBuff, 2, 0) != 2) {
+                    Die("eating_a_player win mismatch:");
+                }
+            }
+
+            p = p->next;
+        }
+
+        free(mBuff);
+        game_end();
+    }
+}
+
+// returns the score to be added to the pl_fd player from set_new_coordinates
+int eating_a_player(int pl_fd, int x, int y, int score){
+    struct player *p = head;
+
+    int score_to_add = 0;
+
+    while(p){
+        if (pl_fd != p->playerfd && p->x == x && p->y == y && p->dead != 1){
+            // either p eats the player,
+            //  nothing happens(score is equal);
+            //  or the player eats p
+
+            if (score > p->score){
+                // inform p that its dead and add pl_fd->score the p score
+                char *mBuff = malloc(sizeof(char) * 2);
+                mBuff[0] = '8';
+                mBuff[1] = '\0';
+
+                //printf("player %d pc %d\n", pl_fd, playerCount);
+                new_player_count = playerCount - 1;
+
+                if (send(p->playerfd, mBuff, 2, 0) != 2) {
+                    Die("eating_a_player mismatch:");
+                }
+
+                p->dead = 1;
+
+                free(mBuff);
+
+                score_to_add += p->score;
+            } else if (score < p->score) {
+                // inform pl_fd from set_new_coordinates that its dead and add p->score the pl_fd score
+                char *mBuff = malloc(sizeof(char) * 2);
+                mBuff[0] = '8';
+                mBuff[1] = '\0';
+
+                new_player_count = playerCount - 1;
+
+                if (send(pl_fd, mBuff, 2, 0) != 2) {
+                    Die("eating_a_player mismatch:");
+                }
+
+                // // put this check in update start
+                // if (get_players_alive() == 1){
+                //     // End game
+                //     mBuff[0] = '9';
+                //     mBuff[1] = '\0';
+
+                //     if (send(p->playerfd, mBuff, 2, 0) != 2) {
+                //         Die("eating_a_player win mismatch:");
+                //     }
+                // }
+
+                return -1;
+
+                free(mBuff);
+
+                p->score += score;
+            }
+        }
+
+        p = p->next;
+    }
+
+    return score_to_add;
 }
 
 void set_new_coordinates(int pl_fd, int x, int y){
@@ -424,19 +538,12 @@ void set_new_coordinates(int pl_fd, int x, int y){
                 new_value = p->x - 1;
 
                 if (map[p->y][new_value] == ' ') {
-                    if (check_for_found_food(new_value, p->y) == 1){
-                        p->score++;
-                    }
                     --p->x;
                 }
             } else if (x == 1){
                 new_value = p->x + 1;
 
                 if (map[p->y][new_value] == ' ') {
-                    if (check_for_found_food(new_value, p->y) == 1){
-                        p->score++;
-                    }
-
                     ++p->x;
                 }
             }
@@ -445,24 +552,29 @@ void set_new_coordinates(int pl_fd, int x, int y){
                 new_value = p->y - 1;
 
                 if (map[new_value][p->x] == ' ') {
-                    if (check_for_found_food(p->x, new_value) == 1){
-                        p->score++;
-                    }
-
                     --p->y;
                 }
             } else if (y == 1){
                 new_value = p->y + 1;
 
                 if (map[new_value][p->x] == ' ') {
-                    if (check_for_found_food(p->x, new_value) == 1){
-                        p->score++;
-                    }
-
                     ++p->y;
                 }
             }
 
+            if (check_for_found_food(p->x, p->y) == 1){
+                p->score++;
+            }
+
+            int score_to_add = eating_a_player(pl_fd, p->x, p->y, p->score);
+
+            if (score_to_add == -1){
+                // this player has been eaten
+                p->dead = 1;
+            } else {
+                p->score += score_to_add;
+            }
+            
             printf("new cords: %d %d\n", p->x, p->y);
 
             break;
@@ -488,6 +600,7 @@ void move_listener(struct pollfd * fds) {
     // Polling taken from https://www.ibm.com/docs/en/i/7.4?topic=designs-using-poll-instead-select
 
     rc = poll(fds, playerCount, 95); 
+    printf("after playerCount %d \n", playerCount);
 
     /***********************************************************/
     /* Check to see if the poll call failed.                   */
@@ -509,6 +622,7 @@ void move_listener(struct pollfd * fds) {
 
     int k = 0;
     for (;k < playerCount; k++){
+        printf("during playerCount %d \n", playerCount);
         // if(fds[k].revents != POLLIN)
         // {
         //     printf("  Error! revents = %d\n", fds[k].revents);
@@ -558,6 +672,22 @@ void move_listener(struct pollfd * fds) {
     //pthread_exit(NULL);
 }
 
+void game_end(){
+    struct player *p = head;
+
+    int new_value;
+    while(p){
+        close(p->playerfd);
+        p = p->next;
+    }
+
+    close(serversock);
+    system("clear");
+    printf("Game end!");
+
+    exit(0);
+}
+
 void game_update(){
 
     for(;;){
@@ -565,6 +695,10 @@ void game_update(){
         int i = 2;
 
         //memset(mBuff, 0, sizeof(mBuff));
+
+        if (new_player_count != playerCount){
+            playerCount = new_player_count;
+        }
 
         mBuff[0] = '7';
         mBuff[1] = 48+playerCount;
@@ -584,9 +718,12 @@ void game_update(){
             //printf("u p->x = %d\n", p->x);
             //printf("u p->y = %d\n", p->y);
 
-            fds[j].fd = p->playerfd;
-            fds[j].events = POLLIN;
-            j++;
+            if (p->dead == 0){
+                fds[j].fd = p->playerfd;
+                fds[j].events = POLLIN;
+                j++; 
+            }
+            
             //int received = -1;
             //char *recvBuff = malloc(sizeof(char) * 255);
             //int rc;
@@ -617,11 +754,15 @@ void game_update(){
         }
 
         //j--;
-
+        printf("before playerCount %d \n", playerCount);
         move_listener(fds);
 
         //printf("Main sleep\n\n");
         usleep(100000);
+
+        if (playerCount == 1) {
+            check_if_a_player_has_won();
+        }
 
         // int threadJoinStatus = 0;
         // for (;j > 0; j--) {
@@ -638,34 +779,36 @@ void game_update(){
         p = head;
 
         while(p){
-            // Add symbol
-            mBuff[i] = p->symbol;
-            i++;
+            if (p->dead == 0){
+                // Add symbol
+                mBuff[i] = p->symbol;
+                i++;
 
-            // Add score
-            mBuff[i] = (p->score)/10 + 48;
-            i++;
-            mBuff[i] = ((p->score) % 10) + 48;
-            i++;
+                // Add score
+                mBuff[i] = (p->score)/10 + 48;
+                i++;
+                mBuff[i] = ((p->score) % 10) + 48;
+                i++;
 
-            // Add coordinates
-            mBuff[i] = (p->x)/10 + 48;
-            i++;
-            mBuff[i] = ((p->x) % 10) + 48;
-            i++;
+                // Add coordinates
+                mBuff[i] = (p->x)/10 + 48;
+                i++;
+                mBuff[i] = ((p->x) % 10) + 48;
+                i++;
 
-            mBuff[i] = (p->y)/10 + 48;
-            i++;
-            mBuff[i] = ((p->y) % 10) + 48;
-            i++;
-            // }
+                mBuff[i] = (p->y)/10 + 48;
+                i++;
+                mBuff[i] = ((p->y) % 10) + 48;
+                i++;
+                // }
+
+                if (p) {
+                    mBuff[i] = ':';
+                    i++;
+                }  
+            }
 
             p = p->next;
-
-            if (p) {
-                mBuff[i] = ':';
-                i++;
-            }  
         }
 
         mBuff[i] = '-';
@@ -720,7 +863,7 @@ void game_update(){
 }
 
 int main(int argc, char *argv[]) {
-    int serversock; 
+    //int serversock; 
     struct sockaddr_in server;
     int threadJoinStatus = 0;
 
@@ -778,7 +921,7 @@ int main(int argc, char *argv[]) {
         }
 
         // Accept clients for 10 seconds after player count is bigger than 2
-        if (playerCount > 1) {
+        if (playerCount > 2) {
             fd_set rfds;
             struct timeval tv;
             int retval;

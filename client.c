@@ -22,10 +22,56 @@ char** map; /*map array*/
 int map_width;
 int map_height;
 int game_status; /*0 - waiting for game, 1 - game in progress*/
+int lost;
 
+struct scoreboard {
+  char player_symbol;
+  int score;
+
+  struct scoreboard *next;
+};
+
+struct scoreboard *head_score = NULL;
 
 int got_init_player_count = 0;
 int init_player_count = 0;
+
+//Izveidot jaunu mezglu player sarakstā
+void insert_score(char *pl_symbol, int score) 
+{   
+    //Izveido pašu elementu
+    struct scoreboard *elem = (struct scoreboard*) malloc(sizeof(struct scoreboard));
+
+    elem->player_symbol = pl_symbol;
+    elem->score = score;
+
+    //Izveido norādi uz iepriekšējo pirmo elementu
+    elem->next = head_score;
+
+    //Norāda, ka jaunizveidotais elements ir pirmais
+    head_score = elem;
+
+    //printf("inserting: %c %d\n", pl_symbol, score);
+};
+
+void delete_score_board(struct scoreboard** head)
+{
+   /* deref head_ref to get the real head */
+   struct scoreboard* current = *head;
+   
+   struct scoreboard* next;
+
+   while (current != NULL)
+   {
+    next = current->next;
+    free(current);
+    current = next;
+   }
+
+   /* deref head_ref to affect the real head back
+    in the caller. */
+   *head = NULL;
+}
 
 /*getch function from conio.h (not tested)*/
 int getch(){
@@ -42,6 +88,11 @@ int getch(){
 
 /*exit with error*/
 void Die(char *mess) { perror(mess); exit(1); }
+
+void exit_peacfullly(char *mess){
+  printf(mess);
+  exit(0);
+};
 
 struct player {
   char name[17];
@@ -153,10 +204,15 @@ void HandleMessages(int sock) {
           game_update(mBuff);
           break;
       case '8':
-          Die("Game over");
+          printf("%s\n", mBuff);
+          //exit_peacfullly("You lost!\n");
+          lost = 1;
+          //Die("Game over");
           break;
       case '9':
           game_end(mBuff);
+          exit_peacfullly("You win! Your score: \n");
+          //Die("\n");
           break;
       //default:
           //printf("DEFAULT %s\n", mBuff);
@@ -327,8 +383,12 @@ void game_update(char* mBuff){
   playerCount = mBuff[i]-48;
 
   i++;
-
+  int player_count_sync = 0; // fixes possible misinformation when eating a player
   while (n < playerCount){
+    if (mBuff[i] == '-'){
+      break;
+    }
+
     symbols[n] = mBuff[i];
     i++;
 
@@ -345,13 +405,19 @@ void game_update(char* mBuff){
     //   myScore = playersInfo[n][0];
     // }
 
-    if(n != playerCount-1){
-      i++;
-    }
+    //if(n != playerCount-1){
+    i++;
+    //}
     n++;
+
+    player_count_sync++;
   }
 
+  playerCount = player_count_sync;
+
   //foodCount = mBuff[i]-48;
+
+  //printf("alive0\n");
 
   i++;
   n = 0;
@@ -368,6 +434,8 @@ void game_update(char* mBuff){
     //printf("food cnt = %d\n", n);
   }
 
+  //printf("alive1\n");
+
   //printf("food cnt = %d\n", n);
   foodCount = n;
 
@@ -377,6 +445,8 @@ void game_update(char* mBuff){
     strcpy(mapToPrint[i], map[i]);
   }
 
+  //printf("alive2\n");
+
   i=0;
   for (;i < playerCount;i++){
     //printf("pii1 %d\n", playersInfo[i][1]);
@@ -384,6 +454,8 @@ void game_update(char* mBuff){
     //printf("sym %c\n", symbols[i]);
     mapToPrint[playersInfo[i][2]][playersInfo[i][1]] = symbols[i];
   }
+
+  //printf("alive3\n");
 
   i=0;
   for (i;i < foodCount;i++){
@@ -394,20 +466,52 @@ void game_update(char* mBuff){
   system("clear");
 
   //printf("Score = %d\n", myScore);
+  //printf("alive4\n");
+  delete_score_board(&head_score);
+
+  int previous_k = 0;
+  for (;i < playerCount; i++){
+      int k = 0;
+      char sym_to_insert;
+      int score_to_insert = 100;
+      for (;k < playerCount; k++){
+        if (scores[k] < score_to_insert){
+          score_to_insert = scores[k];
+          sym_to_insert = symbols[k];
+          previous_k = k;
+        }
+      }
+
+      scores[previous_k] = 1000;
+
+      insert_score(sym_to_insert, score_to_insert);
+  }
+
+  struct scoreboard *p = head_score;
+
+  if (lost == 1) {
+    printf("You lost!\n");
+  }
 
   printf("Score table:\n");
-  for (; i < playerCount; i++){
+  while(p){
+    printf("Player %c: %d\n", p->player_symbol, p->score);
+    p = p->next;
+  }
+
+  /*for (; i < playerCount; i++){
     if (i ==  playerCount - init_player_count){
       printf("You -> Player %c: %d\n", symbols[i], scores[i]);
     } else {
       printf("       Player %c: %d\n", symbols[i], scores[i]);
     }
-  }
+  }*/
 
   i = 0;
   for (i; i < map_height; i++){
     printf("%s", mapToPrint[i]);
   }
+  printf("%s\n", mBuff);
 
   //printf("alive5\n");
 
@@ -425,7 +529,7 @@ void game_end(char* mBuff){
   char results[8][20];
   int chars[8];
 
-  playerCount = mBuff[i]-48;
+  /*playerCount = mBuff[i]-48;
 
   i++;
 
@@ -438,11 +542,13 @@ void game_end(char* mBuff){
         break;
     } else {i++;}
 
-  }
+  }*/
 
   system("clear");
 
-  i = 0;
+  printf("You win! Your score: ");
+
+  /*i = 0;
   for (i; i < playerCount; i++){
     n=0;
     while (n < chars[i]-3){
@@ -459,7 +565,7 @@ void game_end(char* mBuff){
 
     Die("\n");
 
-  }
+  }*/
 }
 
 void move(int sock, char c){
@@ -493,7 +599,7 @@ void control_char(int sock){
 
   /*button listener (works only when game in progress)*/
   for (;;){
-    if(game_status == 1){
+    if(game_status == 1 && lost == 0){
       c = getch();
 
       if (c == 'w' || c == 'a' || c == 's' || c == 'd'){
@@ -517,6 +623,8 @@ int main(int argc, char *argv[]) {
   int lenght;
 
   game_status = 0;
+
+  lost = 0;
 
   if (argc != 3) {
     fprintf(stderr, "USAGE: TCPecho <server_ip> <port>\n");
