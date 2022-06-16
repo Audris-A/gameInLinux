@@ -20,6 +20,6 @@
       - to leave a game press L key.
     - any player that was eaten can still watch the game until it ends;
     - after a winner has been found:
-      - by eating all the players;
+      - by eating all the players or;
       - by being the last one in the game;
-    a message shows that the player is the winner and the game ends.
+      - a message shows that the player is the winner and the game ends.
