@@ -22,4 +22,4 @@
     - after a winner has been found:
       - by eating all the players;
       - by being the last one in the game;
-      a message shows that the player is the winner and the game ends.
+    a message shows that the player is the winner and the game ends.
