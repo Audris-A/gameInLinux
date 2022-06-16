@@ -25,6 +25,7 @@ int game_status; /*0 - waiting for game, 1 - game in progress*/
 int lost;
 int my_score = 0;
 int sock;
+int left_game = 0;
 
 struct scoreboard {
   char player_symbol;
@@ -182,13 +183,10 @@ void HandleMessages(int sock) {
           break;
       case '8':
           lost = 1;
-          //close(sock);
-          //exit_peacfullly("\n");
           break;
       case '9':
           // Game ended, probably lost.
           game_end(mBuff);
-          //usleep(150000);
           exit_peacfullly("\n");
     }
   }
@@ -491,7 +489,6 @@ void game_end(char* mBuff){
 
 }
 
-int left_game = 0;
 void move(int sock, char c){
 
   char dest[3] = "1";

@@ -18,7 +18,7 @@ extern int errno ;
 
 int playerCount;
 int serversock;
-int new_player_count;
+int closefd = 0;
 
 char** map;
 
@@ -251,11 +251,6 @@ void sendRow(char *fileName, int lineLength) {
     }
 
     int row_it = 0;
-    // for (;row_it < rowCount; row_it++){
-    //     char* row = (char*)malloc(sizeof(char)*strlen(line));
-    //     map[row_it] = row;
-    //     //free(row);
-    // }
 
     // Digest map row
     while ((read = getline(&line, &len, input)) != -1) {
@@ -308,10 +303,6 @@ void sendRow(char *fileName, int lineLength) {
     }
 
     fclose(input);
-
-    /*for(;;){
-        //
-    }*/
 }
 
 void gameStart(char *fileName) {
@@ -328,7 +319,6 @@ void gameStart(char *fileName) {
     char *mBuff = malloc(sizeof(char) * 255);
 
     sprintf(infoHolder, "%d", playerCount);
-
 
     if (input == NULL) {
         exit(EXIT_FAILURE);
@@ -402,18 +392,7 @@ void gameStart(char *fileName) {
         printf("%s", map[itt]);
     }
 
-    // launch game update?
-    //game_update();
-
-    //for(;;){
-    
-    // Call client move listener thread creation
-    //move_listener();
-
-    //new_player_count = playerCount;
-
     game_update();
-    //}
 }
 
 int check_for_found_food(int x, int y){
@@ -444,9 +423,6 @@ int get_players_alive(){
 }
 
 void check_if_a_player_has_won(){
-    //if (get_players_alive() == 1){
-    // End game
-
     struct player *p = head;
     char *mBuff = malloc(sizeof(char) * 5);
 
@@ -497,9 +473,6 @@ int eating_a_player(int pl_fd, int x, int y, int score){
                 mBuff[0] = '8';
                 mBuff[1] = '\0';
 
-                //printf("player %d pc %d\n", pl_fd, playerCount);
-                //new_player_count = playerCount - 1;
-
                 if (send(p->playerfd, mBuff, 2, 0) != 2) {
                     Die("eating_a_player mismatch:");
                 }
@@ -515,22 +488,9 @@ int eating_a_player(int pl_fd, int x, int y, int score){
                 mBuff[0] = '8';
                 mBuff[1] = '\0';
 
-                //new_player_count = playerCount - 1;
-
                 if (send(pl_fd, mBuff, 2, 0) != 2) {
                     Die("eating_a_player mismatch:");
                 }
-
-                // // put this check in update start
-                // if (get_players_alive() == 1){
-                //     // End game
-                //     mBuff[0] = '9';
-                //     mBuff[1] = '\0';
-
-                //     if (send(p->playerfd, mBuff, 2, 0) != 2) {
-                //         Die("eating_a_player win mismatch:");
-                //     }
-                // }
 
                 return -1;
 
@@ -618,27 +578,12 @@ void refresh_player_status(int plfd){
     }
 }
 
-int exst = 0;
-
-int closefd = 0;
-
 void move_listener(struct pollfd * fds, int plc) {
-    //struct numbers *pl = (struct numbers *) _pl;
-
-    //struct pollfd fds[playerCount];
-
-    //memset(fds, 0 , sizeof(fds));
-    //printf("Process client: %d\n", ((struct player*) pl)->playerfd);
-
-    //fds[0].fd = ((struct player*) pl)->playerfd;
-    //fds[0].events = POLLIN;
-
     int rc;
 
-    // Polling taken from https://www.ibm.com/docs/en/i/7.4?topic=designs-using-poll-instead-select
-
+    // Polling usage taken from https://www.ibm.com/docs/en/i/7.4?topic=designs-using-poll-instead-select
     rc = poll(fds, plc, 95); 
-    printf("after playerCount %d \n", plc);
+    printf("after poll call playerCount %d \n", plc);
 
     /***********************************************************/
     /* Check to see if the poll call failed.                   */
@@ -660,16 +605,10 @@ void move_listener(struct pollfd * fds, int plc) {
 
     int k = 0;
     for (;k < plc; k++){
-        printf("during playerCount %d \n", plc);
-        // if(fds[k].revents != POLLIN)
-        // {
-        //     printf("  Error! revents = %d\n", fds[k].revents);
-        // } else 
+        printf("during poll for loop playerCount %d \n", plc);
 
-        //printf("testing: %d\n", fds[k].fd);
         char *recvBuff = malloc(sizeof(char) * 3);
         if (fds[k].revents == POLLIN) {
-            printf("received data\n");
             rc = recv(fds[k].fd, recvBuff, 3, MSG_DONTWAIT); // sizeof(buffer)
             if (rc < 0)
             {
@@ -683,28 +622,20 @@ void move_listener(struct pollfd * fds, int plc) {
                   case 'U':
                     y_out = -1;
                     break;
-                    //--((struct player*) pl)->y;
                   case 'R':
                     x_out = 1;
                     break;
-                    //++((struct player*) pl)->x;
                   case 'D':
                     y_out = 1;
                     break;
-                    //++((struct player*) pl)->y;
                   case 'L':
                     x_out = -1;
                     break;
-                    //--((struct player*) pl)->x;
                   case 'Q':
                     printf("Closing client %d\n", fds[k].fd);
                     refresh_player_status(fds[k].fd);
                     closefd = fds[k].fd;
-                    //exst=1;
-                    //exit(1);
-                    //close(fds[k].fd);
                     break;
-                    //--((struct player*) pl)->x;
                   default:
                       printf("unrecognized movement\n");
                 }
@@ -716,7 +647,6 @@ void move_listener(struct pollfd * fds, int plc) {
         free(recvBuff);
     }
     
-    //pthread_exit(NULL);
 }
 
 void game_end(){
@@ -749,10 +679,7 @@ void game_end(){
 
     close(serversock);
     
-    //system("clear");
-    
     printf("Game end!");
-
 
     free(mBuff);
 
@@ -765,23 +692,10 @@ void game_update(){
         char *mBuff = malloc(sizeof(char) * 255);
         int i = 2;
 
-        //memset(mBuff, 0, sizeof(mBuff));
-
-        /*if (new_player_count != playerCount){
-            playerCount = new_player_count;
-        }*/
-
         mBuff[0] = '7';
         mBuff[1] = 48+playerCount;
 
         struct player *p = head;
-
-        //pthread_t clientThreads[8];
-
-        //struct player *players[8];
-
-        //memset(fds, 0 , sizeof(fds));
-        printf("aa\n");
 
         if (closefd != 0){
             while(p) {
@@ -805,15 +719,11 @@ void game_update(){
             }
 
             closefd = 0;
-            //exit(0);
         }
 
         struct pollfd * fds = malloc(sizeof(struct pollfd) * playerCount);
         int j = 0;
         while(p){
-            //printf("u p->x = %d\n", p->x);
-            //printf("u p->y = %d\n", p->y);
-
             if (fcntl(p->playerfd, F_GETFD) != -1 && p->status == 0){ // p->dead == 0
                 printf("Adding client %d\n", p->playerfd);
                 fds[j].fd = p->playerfd;
@@ -824,18 +734,9 @@ void game_update(){
             p = p->next;
         }
 
-        printf("a\n");
-
-        //j--;
-        printf("before playerCount %d, fds cnt = %d\n", playerCount, j);
         move_listener(fds, j);
 
-        printf("b\n");
-
-        //printf("Main sleep\n\n");
         usleep(100000);
-
-        printf("c\n");
 
         p = head;
 
@@ -906,13 +807,10 @@ void game_update(){
 
         unsigned int plLen = strlen(mBuff);
 
-        printf("garums = %d\n", plLen);
-
         p = head;
         // Send the new info to players
         //   any player who is dead or alive
 
-        printf("d\n");
         while(p){
             int fdch = fcntl(p->playerfd, F_GETFD);
             printf("fdch = %d\n", fdch);
@@ -927,8 +825,6 @@ void game_update(){
             p = p->next;
         }
 
-        printf("e\n");
-
         if (get_players_alive() == 1) {
             check_if_a_player_has_won();
         }
@@ -942,7 +838,6 @@ void game_update(){
 }
 
 int main(int argc, char *argv[]) {
-    //int serversock; 
     struct sockaddr_in server;
     int threadJoinStatus = 0;
 
