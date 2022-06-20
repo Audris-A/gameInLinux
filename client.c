@@ -593,6 +593,7 @@ int main(int argc, char *argv[]) {
     Die("Failed to connect with server");
   }
 
+  system("clear");
   printf("Enter your name:\n");
   scanf("%s", username);
 
