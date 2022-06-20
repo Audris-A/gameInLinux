@@ -465,6 +465,14 @@ void game_update(char* mBuff){
   for (i; i < map_height; i++){
     printf("%s", mapToPrint[i]);
   }
+
+  i = 0;
+  for (i;i < map_height;i++){
+    free(mapToPrint[i]);
+    //strcpy(mapToPrint[i], map[i]);
+  }
+
+  free(mapToPrint);
 }
 
 void game_end(char* mBuff){

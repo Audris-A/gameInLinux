@@ -285,7 +285,7 @@ void sendRow(char *fileName, int lineLength) {
         strcat(mBuff, "\0");
         plLen = strlen(mBuff);
 
-        usleep(10000);
+        usleep(50000);
 
         while(p){
             //printf("%s", mBuff);
@@ -895,7 +895,7 @@ int main(int argc, char *argv[]) {
         }
 
         // Accept clients for 10 seconds after player count is bigger than 2
-        if (playerCount > 2) {
+        if (playerCount > 1) {
             fd_set rfds;
             struct timeval tv;
             int retval;
