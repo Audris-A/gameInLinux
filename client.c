@@ -9,6 +9,7 @@
 #include <pthread.h>
 #include <time.h>
 #include <poll.h>
+#include <signal.h>
 
 #define BUFFSIZE 255
 
@@ -167,6 +168,10 @@ void pushPlayers(struct player** head, char* name/*, char* symbol*/)
 void HandleMessages(int sock) {
   char *mBuff = malloc(sizeof(char) * 255);
   int received = -1;
+  int threadJoinStatus;
+
+  int joinRes = 0;
+
   /* Receive message */
   if ((received = recv(sock, mBuff, BUFFSIZE, 0)) < 0) {
   Die("Failed to receive initial bytes from server");
@@ -199,20 +204,50 @@ void HandleMessages(int sock) {
       case '9':
           // Game ended, probably lost.
           game_ended = 1;
-          pthread_cancel(clientThread);
+          system("clear");
+
           game_end(mBuff);
           free(mBuff);
+          free(map);
+          delete_score_board(&head_score);
+          deletePlayers(&head);
+
+          usleep(50000);
+          pthread_cancel(clientThread);
+          usleep(50000);
+          //joinRes = pthread_join(clientThread, threadJoinStatus);
+
+          // printf("join res = %d %d\n", joinRes, threadJoinStatus);
+
+          // if (PTHREAD_CANCELED == threadJoinStatus){
+          //   printf("yup, its cancelled!\n");
+          // }
+
           exit_peacfullly("\n");
     }
-    }else {
+    } else {
       game_ended = 1;
-      pthread_cancel(clientThread);
-
-      usleep(150000);
       system("clear");
+
+      //usleep(150000);
       printf("\nYou left the game! :( Your score: %d\n\n", my_score);
 
       free(mBuff);
+      free(map);
+      delete_score_board(&head_score);
+      deletePlayers(&head);
+
+      usleep(50000);
+      pthread_cancel(clientThread);
+      usleep(50000);
+      //joinRes = pthread_join(clientThread, threadJoinStatus);
+
+      // printf("join res = %d %d\n", joinRes, threadJoinStatus);
+
+      // if (PTHREAD_CANCELED == threadJoinStatus){
+      //   printf("yup, its cancelled!\n");
+      // }
+
       exit_peacfullly("");
   }
   }
@@ -337,7 +372,7 @@ void add_map_row(char* mBuff){
   int i=1;
   int n=0;
   int row_num;
-  char* row = (char*)malloc(sizeof(char)*map_width);
+  char* row = (char*)malloc(sizeof(char)*map_width + 1);
 
   row_num = get_number_map_rows(mBuff, i, 0);
   i+=3;
@@ -427,7 +462,8 @@ void game_update(char* mBuff){
   i = 0;
   // Copy default map to map to show
   for (;i < map_height;i++){
-    mapToPrint[i] = (char*)malloc(sizeof(char)*map_width);
+    mapToPrint[i] = (char*)malloc(sizeof(char)*(map_width + 2));
+    memset(mapToPrint[i], 0, map_width + 2);
     strcpy(mapToPrint[i], map[i]);
   }
 
@@ -535,7 +571,7 @@ void game_end(char* mBuff){
   char results[8][20];
   int chars[8];
 
-  system("clear");
+  //system("clear");
 
   my_score = ((mBuff[1] - 48) * 10) + (mBuff[2] - 48);
 
@@ -639,6 +675,8 @@ int main(int argc, char *argv[]) {
               sizeof(echoserver)) < 0) {
     Die("Failed to connect with server");
   }
+
+  system("clear");
   
   printf("Enter your name:\n");
   scanf("%s", username);

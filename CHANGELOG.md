@@ -1,0 +1,6 @@
+- Get rid of memory leaks
+ - (done) Definitely lost;
+ - (done) Indirectly lost;
+ - (done maybe not 100% for client) Possibly lost;
+ - (done only for server) Still reachable;
+ - Fix erros which Valgrind finds.

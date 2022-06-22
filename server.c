@@ -43,7 +43,8 @@ int symbol_it = 0;
 
 int starting_positions[8][2] = {
         {1, 1},
-        {89, 29},
+        {2,2},
+        //{89, 29},
         {34,13},
         {1,29},
         {88,1},
@@ -56,7 +57,8 @@ int starting_positions[8][2] = {
 int food_count = 16;
 int food_positions[16][3] = {
         {13, 7, 0}, // x, y, eaten
-        {40, 7, 0},
+        {3,2,0},
+        //{40, 7, 0},
         {83, 7, 0},
         {4, 13, 0},
         {21, 13, 0},
@@ -117,6 +119,25 @@ void insert_player(char *name, int playerfd)
     head = elem;
 };
 
+void deletePlayers()
+{
+   /* deref head_ref to get the real head */
+   struct player *current = head;
+
+   struct player* next;
+
+   while (current != NULL)
+   {
+    next = current->next;
+    free(current);
+    current = next;
+   }
+
+   /* deref head_ref to affect the real head back
+    in the caller. */
+   head = NULL;
+}
+
 struct player *refreshPlayerCount() {
     struct player *p = head;
     playerCount = 0;
@@ -131,8 +152,8 @@ struct player *refreshPlayerCount() {
 
 void Die(char *mess) { perror(mess); exit(1); }
 
-char *getPlayerUsernames() {
-    char *info = malloc(sizeof(char) * 256);
+void getPlayerUsernames(char * info) {
+    //char *info = malloc(sizeof(char) * 256);
     strcpy(info, "{");
     struct player *n = head;
 
@@ -147,7 +168,7 @@ char *getPlayerUsernames() {
 
     strcat(info, "}");
 
-    return info;
+    //return info;
 }
 
 void lobbyInfo() {
@@ -164,7 +185,11 @@ void lobbyInfo() {
 
     strcat(info, plCnt);
 
-    strcat(info, getPlayerUsernames());
+    char *usernames = malloc(sizeof(char) * 256);
+    getPlayerUsernames(usernames);
+
+    strcat(info, usernames);
+    //strcat(info, getPlayerUsernames());
 
     strcat(info, "\0");
 
@@ -177,6 +202,10 @@ void lobbyInfo() {
 
         p = p->next;
     }
+
+    free(plCnt);
+    free(info);
+    free(usernames);
 }
 
 void handleClient(int sock) {
@@ -298,11 +327,13 @@ void sendRow(char *fileName, int lineLength) {
 
         free(infoHolder);
         free(mBuff);
+        //free(row);
 
         rowCount++;
     }
 
     fclose(input);
+    free(line);
 }
 
 void gameStart(char *fileName) {
@@ -326,11 +357,12 @@ void gameStart(char *fileName) {
 
     while ((read = getline(&line, &len, input)) != -1) {
         rowCount++;
-
+        char *line2 = line;
         if (gotLineLength == 0) {
-            lineLength = strlen(line);
+            lineLength = strlen(line2);
             gotLineLength = 1;
         }
+        free(line2);
     }
 
     fclose(input);
@@ -340,7 +372,9 @@ void gameStart(char *fileName) {
     strcat(mBuff, infoHolder);
 
     // Player usernames
-    strcat(mBuff, getPlayerUsernames());
+    char *usernames = malloc(sizeof(char) * 256);
+    getPlayerUsernames(usernames);
+    strcat(mBuff, usernames);
 
     // Map x coordinate
     sprintf(infoHolder, "%ld", strlen(line));
@@ -382,15 +416,23 @@ void gameStart(char *fileName) {
         p = p->next;
     }
 
+    usleep(100000);
+
     free(infoHolder);
     free(mBuff);
+    free(usernames);
 
     sendRow(fileName, lineLength);
+
+    usleep(100000);
 
     int itt = 0;
     for (; itt< rowCount; itt++){
         printf("%s", map[itt]);
+        free(map[itt]);
     }
+
+    free(map);
 
     game_update();
 }
@@ -492,11 +534,11 @@ int eating_a_player(int pl_fd, int x, int y, int score){
                     Die("eating_a_player mismatch:");
                 }
 
-                return -1;
-
                 free(mBuff);
 
                 p->score += score;
+
+                return -1;
             }
         }
 
@@ -682,6 +724,7 @@ void game_end(){
     printf("Game end!");
 
     free(mBuff);
+    deletePlayers();
 
     exit(0);
 }
@@ -825,15 +868,15 @@ void game_update(){
             p = p->next;
         }
 
-        if (get_players_alive() == 1) {
-            check_if_a_player_has_won();
-        }
-
         free(mBuff);
         mBuff = NULL;
 
         free(fds);
         fds = NULL;
+
+        if (get_players_alive() == 1) {
+            check_if_a_player_has_won();
+        }
     }
 }
 
