@@ -26,6 +26,8 @@ int lost;
 int my_score = 0;
 int sock;
 int left_game = 0;
+int game_ended;
+pthread_t clientThread;
 
 struct scoreboard {
   char player_symbol;
@@ -101,11 +103,18 @@ int getch(){
 }
 
 /*exit with error*/
-void Die(char *mess) { perror(mess); exit(1); }
+void Die(char *mess) { 
+  perror(mess); 
+  game_ended = 1;
+  pthread_exit(NULL);
+  //exit(1); 
+}
 
 void exit_peacfullly(char *mess){
   printf(mess);
-  exit(0);
+  game_ended = 1;
+  pthread_exit(NULL);
+  //exit(0);
 };
 
 void deletePlayers(struct player** head)
@@ -162,14 +171,17 @@ void HandleMessages(int sock) {
   if ((received = recv(sock, mBuff, BUFFSIZE, 0)) < 0) {
   Die("Failed to receive initial bytes from server");
   } else {
-  switch (mBuff[0]){
+  if (left_game == 0){
+    switch (mBuff[0]){
       case '2':
           print_lobby_info(mBuff);
           break;
       case '3':
+          game_ended = 1;
           Die("Game in progress");
           break;
       case '4':
+          game_ended = 1;
           Die("Name is already taken");
           break;
       case '5':
@@ -186,9 +198,23 @@ void HandleMessages(int sock) {
           break;
       case '9':
           // Game ended, probably lost.
+          game_ended = 1;
+          pthread_cancel(clientThread);
           game_end(mBuff);
+          free(mBuff);
           exit_peacfullly("\n");
     }
+    }else {
+      game_ended = 1;
+      pthread_cancel(clientThread);
+
+      usleep(150000);
+      system("clear");
+      printf("\nYou left the game! :( Your score: %d\n\n", my_score);
+
+      free(mBuff);
+      exit_peacfullly("");
+  }
   }
 
   free(mBuff);
@@ -243,6 +269,8 @@ void print_lobby_info(char *mBuff){
   }
 
   printPlayers(&head);
+
+  free(playerName);
 }
 
 int get_number_map_rows(char* mBuff, int start, int last){
@@ -301,6 +329,8 @@ void game_start(char* mBuff){
 
   /*atmina prieks kartes rindam*/
   map = (char**)malloc(sizeof(char*)*map_height);
+
+  free(playerName);
 }
 
 void add_map_row(char* mBuff){
@@ -323,6 +353,8 @@ void add_map_row(char* mBuff){
   map[row_num-1] = row;
 
   printf("%s", map[row_num-1]);
+
+  free(row);
 }
 
 void game_update(char* mBuff){
@@ -334,7 +366,8 @@ void game_update(char* mBuff){
   int foodCoordinates[16][2]; /*1-x, 2-y*/
   int scores[8];
   char symbols[8];// = {'A','B','C','D','E','F','G','H'};
-  char** mapToPrint = (char**)malloc(sizeof(char*)*map_width);
+  //char mapToPrint[map_height][map_width];
+  char** mapToPrint = (char**)malloc(sizeof(char*)*map_height);
 
   if (game_status == 0){
     game_status = 1;
@@ -376,22 +409,24 @@ void game_update(char* mBuff){
 
   i++;
   n = 0;
-  // Food acquiring
-  while (mBuff[i] != 'e'){
-    foodCoordinates[n][0] = get_number(mBuff, i, 0);
-    i+=2;
-    foodCoordinates[n][1] = get_number(mBuff, i, 0);
-    i+=2;
+  // // Food acquiring
+  // while (mBuff[i] != 'e'){
+  //   foodCoordinates[n][0] = get_number(mBuff, i, 0);
+  //   i+=2;
+  //   foodCoordinates[n][1] = get_number(mBuff, i, 0);
+  //   i+=2;
 
-    i++;
-    n++;
-  }
+  //   i++;
+  //   n++;
+  // }
 
-  foodCount = n;
+  int food_i = i;
+
+  //foodCount = n;
 
   i = 0;
   // Copy default map to map to show
-  for (i;i < map_height;i++){
+  for (;i < map_height;i++){
     mapToPrint[i] = (char*)malloc(sizeof(char)*map_width);
     strcpy(mapToPrint[i], map[i]);
   }
@@ -406,9 +441,27 @@ void game_update(char* mBuff){
 
   i=0;
   // Insert food on the map
-  for (i;i < foodCount;i++){
-    mapToPrint[foodCoordinates[i][1]][foodCoordinates[i][0]] = '@';
+  // Food acquiring
+
+  while (mBuff[food_i] != 'e'){
+    int first = get_number(mBuff, food_i, 0);
+    food_i += 2;
+    int second = get_number(mBuff, food_i, 0);
+    food_i += 2;
+
+    mapToPrint[second][first] = '@';
+    // foodCoordinates[n][0] = get_number(mBuff, i, 0);
+    // i+=2;
+    // foodCoordinates[n][1] = get_number(mBuff, i, 0);
+    // i+=2;
+
+    food_i++;
+    n++;
   }
+
+  // for (i;i < foodCount;i++){
+  //   mapToPrint[foodCoordinates[i][1]][foodCoordinates[i][0]] = '@';
+  // }
 
   i=0;
   system("clear");
@@ -462,14 +515,13 @@ void game_update(char* mBuff){
   }
 
   i = 0;
-  for (i; i < map_height; i++){
+  for (; i < map_height; i++){
     printf("%s", mapToPrint[i]);
   }
 
   i = 0;
-  for (i;i < map_height;i++){
+  for (; i < map_height; i++){
     free(mapToPrint[i]);
-    //strcpy(mapToPrint[i], map[i]);
   }
 
   free(mapToPrint);
@@ -491,10 +543,8 @@ void game_end(char* mBuff){
     // won the game
     printf("\nCongratulations, you won!\n Your score: %d\n\n", my_score);
   } else {
-    printf("You lost! :( Your score: %d\n", my_score);
-    printf("Game ended!\n\n");
+    printf("\nYou lost! :(\n Your score: %d\n\n", my_score);
   }
-
 }
 
 void move(int sock, char c){
@@ -533,6 +583,10 @@ void control_char(int sock){
 
   /*button listener (works only when game in progress)*/
   for (;;){
+    if (game_ended == 1) {
+      pthread_exit(NULL);
+    }
+
     c = getch();
 
     if(game_status == 1 && lost == 0){
@@ -548,21 +602,6 @@ void control_char(int sock){
       }
 
       c = '0';
-    }
-
-    if (left_game == 1) {
-      usleep(150000);
-
-      system("clear");
-      if (lost == 1) {
-        printf("You lost! :( Your score: %d\n", my_score);
-      } else {
-        printf("Your score: %d\n", my_score);
-      }
-
-      printf("Left game\n\n");
-
-      exit_peacfullly("");
     }
   }
 }
@@ -600,8 +639,7 @@ int main(int argc, char *argv[]) {
               sizeof(echoserver)) < 0) {
     Die("Failed to connect with server");
   }
-
-  system("clear");
+  
   printf("Enter your name:\n");
   scanf("%s", username);
 
@@ -618,10 +656,14 @@ int main(int argc, char *argv[]) {
     Die("Mismatch in number of sent bytes");
   }
 
-  pthread_t clientThread;
-  pthread_create(&clientThread, NULL, control_char, sock);
+  free(username);
 
-  for(;;){
+  pthread_attr_t attr;
+  pthread_attr_init(&attr);
+  pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+  pthread_create(&clientThread, &attr, control_char, sock);
+
+  for(;;){  
     /*server message handler*/
     HandleMessages(sock);
   }

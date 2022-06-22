@@ -285,7 +285,7 @@ void sendRow(char *fileName, int lineLength) {
         strcat(mBuff, "\0");
         plLen = strlen(mBuff);
 
-        usleep(50000);
+        usleep(10000);
 
         while(p){
             //printf("%s", mBuff);
