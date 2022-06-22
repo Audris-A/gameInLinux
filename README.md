@@ -23,3 +23,7 @@
     - see master branch.
   - Server launch format: {server} {port path to map} (./server 4098 map.txt);
   - Client launch format: {client} {server_ip} {port} (./client 192.168.88.14 4098).
+
+
+### Usability
+Tested with 64-bit and 32-bit systems. For 32-bit system the program should be recompiled because it is compiled on 64-bit system by default.
