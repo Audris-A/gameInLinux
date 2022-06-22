@@ -43,8 +43,7 @@ int symbol_it = 0;
 
 int starting_positions[8][2] = {
         {1, 1},
-        {2,2},
-        //{89, 29},
+        {89, 29},
         {34,13},
         {1,29},
         {88,1},
@@ -57,8 +56,7 @@ int starting_positions[8][2] = {
 int food_count = 16;
 int food_positions[16][3] = {
         {13, 7, 0}, // x, y, eaten
-        {3,2,0},
-        //{40, 7, 0},
+        {40, 7, 0},
         {83, 7, 0},
         {4, 13, 0},
         {21, 13, 0},
@@ -314,7 +312,7 @@ void sendRow(char *fileName, int lineLength) {
         strcat(mBuff, "\0");
         plLen = strlen(mBuff);
 
-        usleep(10000);
+        usleep(200000);
 
         while(p){
             //printf("%s", mBuff);
@@ -467,6 +465,8 @@ int get_players_alive(){
 void check_if_a_player_has_won(){
     struct player *p = head;
     char *mBuff = malloc(sizeof(char) * 5);
+
+    usleep(100000);
 
     // Inform the winner
     while(p){
@@ -938,7 +938,7 @@ int main(int argc, char *argv[]) {
         }
 
         // Accept clients for 10 seconds after player count is bigger than 2
-        if (playerCount > 1) {
+        if (playerCount > 2) {
             fd_set rfds;
             struct timeval tv;
             int retval;
