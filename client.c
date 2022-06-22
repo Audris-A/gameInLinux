@@ -205,6 +205,10 @@ void HandleMessages(int sock) {
           // Game ended, probably lost.
           game_ended = 1;
           system("clear");
+          int k = 0;
+          for (; k < map_height; k++){
+            free(map[k]);
+          }
 
           game_end(mBuff);
           free(mBuff);
@@ -233,6 +237,10 @@ void HandleMessages(int sock) {
       printf("\nYou left the game! :( Your score: %d\n\n", my_score);
 
       free(mBuff);
+      int k = 0;
+      for (; k < map_height; k++){
+        free(map[k]);
+      }
       free(map);
       delete_score_board(&head_score);
       deletePlayers(&head);
@@ -372,24 +380,28 @@ void add_map_row(char* mBuff){
   int i=1;
   int n=0;
   int row_num;
-  char* row = (char*)malloc(sizeof(char)*map_width + 1);
+  //char* row = (char*)malloc(sizeof(char)*map_width + 1);
 
   row_num = get_number_map_rows(mBuff, i, 0);
   i+=3;
 
+  map[row_num-1] = (char*)malloc(sizeof(char)*map_width + 1);
+
   while (n < map_width){
-    row[n] = mBuff[i];
+    //row[n] = mBuff[i];
+    map[row_num-1][n] = mBuff[i];
     i++;
     n++;
   }
+  map[row_num-1][n] = 0;
 
-  row[n] = 0;
+  //row[n] = 0;
 
-  map[row_num-1] = row;
+  //map[row_num-1] = row;
 
   printf("%s", map[row_num-1]);
 
-  free(row);
+  //free(row);
 }
 
 void game_update(char* mBuff){

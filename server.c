@@ -203,9 +203,9 @@ void lobbyInfo() {
         p = p->next;
     }
 
-    free(plCnt);
-    free(info);
-    free(usernames);
+    //free(plCnt);
+    //free(info);
+    //free(usernames);
 }
 
 void handleClient(int sock) {
@@ -333,7 +333,7 @@ void sendRow(char *fileName, int lineLength) {
     }
 
     fclose(input);
-    free(line);
+    //free(line);
 }
 
 void gameStart(char *fileName) {
@@ -357,12 +357,12 @@ void gameStart(char *fileName) {
 
     while ((read = getline(&line, &len, input)) != -1) {
         rowCount++;
-        char *line2 = line;
+        //char *line2 = line;
         if (gotLineLength == 0) {
-            lineLength = strlen(line2);
+            lineLength = strlen(line);
             gotLineLength = 1;
         }
-        free(line2);
+        //free(line2);
     }
 
     fclose(input);
@@ -420,19 +420,19 @@ void gameStart(char *fileName) {
 
     free(infoHolder);
     free(mBuff);
-    free(usernames);
+    //free(usernames);
 
     sendRow(fileName, lineLength);
 
     usleep(100000);
 
     int itt = 0;
-    for (; itt< rowCount; itt++){
-        printf("%s", map[itt]);
-        free(map[itt]);
-    }
+    // for (; itt< rowCount; itt++){
+    //     printf("%s", map[itt]);
+    //     free(map[itt]);
+    // }
 
-    free(map);
+    // free(map);
 
     game_update();
 }
