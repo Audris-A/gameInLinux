@@ -1,4 +1,4 @@
-## Maze game reborn
+# Maze game reborn
   - Author: Audris Arzovs;
   - Game has the same launch formats;
   - The game can be called as a game now, meaning, 
